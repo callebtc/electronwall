@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"io/ioutil"
 
 	"github.com/lightningnetwork/lnd/lnrpc"
@@ -45,6 +46,11 @@ func getClientConnection(ctx context.Context) (*grpc.ClientConn, error) {
 	return conn, nil
 
 }
+
+func trimPubKey(pubkey []byte) string {
+	return fmt.Sprintf("%s...%s", hex.EncodeToString(pubkey)[:6], hex.EncodeToString(pubkey)[len(hex.EncodeToString(pubkey))-6:])
+}
+
 func main() {
 	conn, err := getClientConnection(context.Background())
 	if err != nil {
@@ -55,7 +61,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	log.Infof("Listening for incoming channel requests...")
+	log.Infof("Listening for incoming channel requests")
 	for {
 		req := lnrpc.ChannelAcceptRequest{}
 		err = acceptClient.RecvMsg(&req)
@@ -74,7 +80,7 @@ func main() {
 
 		res := lnrpc.ChannelAcceptResponse{}
 		if accept {
-			log.Infof("Accepting channel request from %s", hex.EncodeToString(req.NodePubkey))
+			log.Infof("✅ Accepting channel request from %s", trimPubKey(req.NodePubkey))
 			res = lnrpc.ChannelAcceptResponse{Accept: true,
 				PendingChanId:   req.PendingChanId,
 				CsvDelay:        req.CsvDelay,
@@ -85,8 +91,9 @@ func main() {
 			}
 
 		} else {
-			log.Infof("Rejecting channel request from %s", hex.EncodeToString(req.NodePubkey))
-			res = lnrpc.ChannelAcceptResponse{Accept: false}
+			log.Infof("❌ Rejecting channel request from %s", trimPubKey(req.NodePubkey))
+			res = lnrpc.ChannelAcceptResponse{Accept: false,
+				Error: Configuration.RejectMessage}
 		}
 		err = acceptClient.Send(&res)
 		if err != nil {

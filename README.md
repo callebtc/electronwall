@@ -11,4 +11,4 @@ go build .
 ```
 
 ## Config
-Edit `config.yaml`
+Edit `config.yaml.example` and rename to `config.yaml`.
