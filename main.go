@@ -70,17 +70,29 @@ func main() {
 		}
 		log.Infof("New channel request from %s", hex.EncodeToString(req.NodePubkey))
 
-		accept := false
-		for _, pubkey := range Configuration.Accept {
-			if hex.EncodeToString(req.NodePubkey) == pubkey {
-				accept = true
-				break
+		var accept bool
+
+		if Configuration.Mode == "whitelist" {
+			accept = false
+			for _, pubkey := range Configuration.Whitelist {
+				if hex.EncodeToString(req.NodePubkey) == pubkey {
+					accept = true
+					break
+				}
+			}
+		} else if Configuration.Mode == "blacklist" {
+			accept = true
+			for _, pubkey := range Configuration.Blacklist {
+				if hex.EncodeToString(req.NodePubkey) == pubkey {
+					accept = false
+					break
+				}
 			}
 		}
 
 		res := lnrpc.ChannelAcceptResponse{}
 		if accept {
-			log.Infof("✅ Accepting channel request from %s", trimPubKey(req.NodePubkey))
+			log.Infof("✅ [%s mode] Allow channel from %s", Configuration.Mode, trimPubKey(req.NodePubkey))
 			res = lnrpc.ChannelAcceptResponse{Accept: true,
 				PendingChanId:   req.PendingChanId,
 				CsvDelay:        req.CsvDelay,
@@ -91,7 +103,7 @@ func main() {
 			}
 
 		} else {
-			log.Infof("❌ Rejecting channel request from %s", trimPubKey(req.NodePubkey))
+			log.Infof("❌ [%s mode] Deny channel from %s", Configuration.Mode, trimPubKey(req.NodePubkey))
 			res = lnrpc.ChannelAcceptResponse{Accept: false,
 				Error: Configuration.RejectMessage}
 		}
