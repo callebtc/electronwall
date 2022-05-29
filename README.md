@@ -4,10 +4,10 @@ An RPC daemon for LND that listens in the background and allows incoming channel
 ## Install
 
 ```bash
-git clone https://github.com/callebtc/lnd_whitelist.git
-cd lnd_whitelist
+git clone https://github.com/callebtc/electronwall.git
+cd electronwall
 go build .
-./lnd_whitelist
+./electronwall
 ```
 
 ## Config

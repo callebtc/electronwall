@@ -1,4 +1,4 @@
-module github.com/callebtc/lnd_whitelist
+module github.com/callebtc/electronwall
 
 go 1.16
 
