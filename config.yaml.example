@@ -1,6 +1,6 @@
 # Mode can either be "blacklist" or "whitelist"
 mode: "blacklist" 
-
+worker: 3
 # Credentials for your node
 host: "127.0.0.1:10009"
 macaroon_path: "/home/bitcoin/.lnd/data/chain/bitcoin/mainnet/admin.macaroon"

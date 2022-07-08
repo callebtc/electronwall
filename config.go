@@ -10,6 +10,7 @@ import (
 var Configuration = struct {
 	Mode          string   `yaml:"mode"`
 	Host          string   `yaml:"host"`
+	Worker        int      `yaml:"worker"`
 	MacaroonPath  string   `yaml:"macaroon_path"`
 	TLSPath       string   `yaml:"tls_path"`
 	Whitelist     []string `yaml:"whitelist"`

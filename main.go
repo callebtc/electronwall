@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"sync"
 
-	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
 	"github.com/lightningnetwork/lnd/macaroons"
 
 	log "github.com/sirupsen/logrus"
@@ -69,40 +68,20 @@ func main() {
 	ctx = context.WithValue(ctx, ctxKeyWaitGroup, &wg)
 	wg.Add(1)
 
-	// channel acceptor
-	// go dispatchChannelAcceptor(ctx, conn, client)
+	go dispatchChannelAcceptor(ctx, conn)
 
-	// htlc event subscriber, reports on incoming htlc events
-	router := routerrpc.NewRouterClient(conn)
-	stream, err := router.SubscribeHtlcEvents(ctx, &routerrpc.SubscribeHtlcEventsRequest{})
-	if err != nil {
-		return
-	}
-
-	go func() {
-		err := processHtlcEvents(stream)
-		if err != nil {
-			log.Error("htlc events error",
-				"err", err)
-		}
-	}()
-
-	// interceptor, decide whether to accept or reject
-	interceptor, err := router.HtlcInterceptor(ctx)
-	if err != nil {
-		return
-	}
+	// htlc interceptor
 
 	log.Info("HTLC Interceptor registered")
-
+	errc := make(chan error)
 	go func() {
-		err := processInterceptor(interceptor)
-		if err != nil {
-			log.Error("interceptor error",
-				"err", err)
-		}
+		errc <- processHtlcEvents(ctx, conn)
 	}()
 
-	wg.Wait()
+	go func() {
+		errc <- processInterceptor(ctx, conn)
+	}()
+
+	log.Println(<-errc)
 
 }
