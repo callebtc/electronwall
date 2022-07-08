@@ -60,7 +60,7 @@ func dispatchChannelAcceptor(ctx context.Context, conn *grpc.ClientConn, client 
 			}
 
 		} else {
-			log.Infof("❌ [%s mode] Deny channel from %s", Configuration.Mode, trimPubKey(req.NodePubkey))
+			log.Infof("❌ [%s mode] Reject channel from %s", Configuration.Mode, trimPubKey(req.NodePubkey))
 			res = lnrpc.ChannelAcceptResponse{Accept: false,
 				Error: Configuration.RejectMessage}
 		}

@@ -60,30 +60,24 @@ func trimPubKey(pubkey []byte) string {
 
 func main() {
 	ctx := context.Background()
-	// conn, err := getClientConnection(ctx)
-	// if err != nil {
-	// 	panic(err)
-	// }
+	conn, err := getClientConnection(ctx)
+	if err != nil {
+		panic(err)
+	}
 
 	var wg sync.WaitGroup
 	ctx = context.WithValue(ctx, ctxKeyWaitGroup, &wg)
 	wg.Add(1)
 
-	// client := lnrpc.NewLightningClient(conn)
+	// channel acceptor
 	// go dispatchChannelAcceptor(ctx, conn, client)
 
-	// htlc interceptor
-	var router routerrpc.RouterClient
+	// htlc event subscriber, reports on incoming htlc events
+	router := routerrpc.NewRouterClient(conn)
 	stream, err := router.SubscribeHtlcEvents(ctx, &routerrpc.SubscribeHtlcEventsRequest{})
 	if err != nil {
 		return
 	}
-	interceptor, err := router.HtlcInterceptor(ctx)
-	if err != nil {
-		return
-	}
-
-	log.Info("HTLC Interceptor registered")
 
 	go func() {
 		err := processHtlcEvents(stream)
@@ -92,6 +86,14 @@ func main() {
 				"err", err)
 		}
 	}()
+
+	// interceptor, decide whether to accept or reject
+	interceptor, err := router.HtlcInterceptor(ctx)
+	if err != nil {
+		return
+	}
+
+	log.Info("HTLC Interceptor registered")
 
 	go func() {
 		err := processInterceptor(interceptor)
