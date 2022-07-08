@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/lightningnetwork/lnd/lnrpc"
@@ -14,6 +15,8 @@ import (
 )
 
 func (app *app) dispatchHTLCAcceptor(ctx context.Context) {
+	// wait group for channel acceptor
+	defer ctx.Value(ctxKeyWaitGroup).(*sync.WaitGroup).Done()
 	conn := app.conn
 	router := routerrpc.NewRouterClient(conn)
 

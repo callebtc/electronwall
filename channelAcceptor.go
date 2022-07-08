@@ -13,7 +13,6 @@ import (
 
 func (app *app) dispatchChannelAcceptor(ctx context.Context) {
 	client := app.client
-
 	// wait group for channel acceptor
 	defer ctx.Value(ctxKeyWaitGroup).(*sync.WaitGroup).Done()
 	// get the lnd grpc connection

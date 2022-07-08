@@ -49,6 +49,7 @@ func getClientConnection(ctx context.Context) (*grpc.ClientConn, error) {
 		grpc.WithBlock(),
 		grpc.WithPerRPCCredentials(cred),
 	}
+	log.Infof("Connecting to LND...")
 	conn, err := grpc.DialContext(ctx, Configuration.Host, opts...)
 	if err != nil {
 		return nil, err
@@ -75,12 +76,12 @@ func main() {
 		app.myPubkey, err = app.getMyPubkey(ctx)
 		if err != nil {
 			log.Errorf("Could not get my pubkey: %s", err)
-			return
+			continue
 		}
 
 		var wg sync.WaitGroup
 		ctx = context.WithValue(ctx, ctxKeyWaitGroup, &wg)
-		wg.Add(1)
+		wg.Add(2)
 
 		// channel acceptor
 		go app.dispatchChannelAcceptor(ctx)
