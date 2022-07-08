@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"sync"
 	"time"
 
@@ -65,16 +64,16 @@ func (app *app) logHtlcEvents(ctx context.Context, stream routerrpc.Router_Subsc
 
 		switch event.Event.(type) {
 		case *routerrpc.HtlcEvent_SettleEvent:
-			log.Debugf("HTLC SettleEvent (chan_id:%d, htlc_id:%d)", event.IncomingChannelId, event.IncomingHtlcId)
+			log.Debugf("HTLC SettleEvent (chan_id:%s, htlc_id:%d)", parse_channelID(event.IncomingChannelId), event.IncomingHtlcId)
 
 		case *routerrpc.HtlcEvent_ForwardFailEvent:
-			log.Debugf("HTLC ForwardFailEvent (chan_id:%d, htlc_id:%d)", event.IncomingChannelId, event.IncomingHtlcId)
+			log.Debugf("HTLC ForwardFailEvent (chan_id:%s, htlc_id:%d)", parse_channelID(event.IncomingChannelId), event.IncomingHtlcId)
 
 		case *routerrpc.HtlcEvent_ForwardEvent:
-			log.Debugf("HTLC ForwardEvent (chan_id:%d, htlc_id:%d)", event.IncomingChannelId, event.IncomingHtlcId)
+			log.Debugf("HTLC ForwardEvent (chan_id:%s, htlc_id:%d)", parse_channelID(event.IncomingChannelId), event.IncomingHtlcId)
 
 		case *routerrpc.HtlcEvent_LinkFailEvent:
-			log.Debugf("HTLC LinkFailEvent (chan_id:%d, htlc_id:%d)", event.IncomingChannelId, event.IncomingHtlcId)
+			log.Debugf("HTLC LinkFailEvent (chan_id:%s, htlc_id:%d)", parse_channelID(event.IncomingChannelId), event.IncomingHtlcId)
 		}
 
 	}
@@ -93,7 +92,7 @@ func (app *app) interceptHtlcEvents(ctx context.Context, interceptor routerrpc.R
 
 			channelEdge, err := app.getPubKeyFromChannel(ctx, event.IncomingCircuitKey.ChanId)
 			if err != nil {
-				log.Error("Error getting pubkey for channel %d", event.IncomingCircuitKey.ChanId)
+				log.Error("Error getting pubkey for channel %s", parse_channelID(event.IncomingCircuitKey.ChanId))
 			}
 
 			var pubkeyFrom, aliasFrom, pubkeyTo, aliasTo string
@@ -107,10 +106,9 @@ func (app *app) interceptHtlcEvents(ctx context.Context, interceptor routerrpc.R
 				aliasFrom = trimPubKey([]byte(pubkeyFrom))
 				log.Error("Error getting alias for node %s", aliasFrom)
 			}
-
 			channelEdgeTo, err := app.getPubKeyFromChannel(ctx, event.OutgoingRequestedChanId)
 			if err != nil {
-				log.Error("Error getting pubkey for channel %d", event.OutgoingRequestedChanId)
+				log.Error("Error getting pubkey for channel %s", parse_channelID(event.OutgoingRequestedChanId))
 			}
 			if channelEdgeTo.node1Pub.String() != app.myPubkey {
 				pubkeyTo = channelEdgeTo.node1Pub.String()
@@ -123,7 +121,15 @@ func (app *app) interceptHtlcEvents(ctx context.Context, interceptor routerrpc.R
 				log.Error("Error getting alias for node %s", aliasTo)
 			}
 
-			forward_info_string := fmt.Sprintf("from %s to %s (%d sat, htlc_id:%d, chan_id:%d->%d)", aliasFrom, aliasTo, event.IncomingAmountMsat/1000, event.IncomingCircuitKey.HtlcId, event.IncomingCircuitKey.ChanId, event.OutgoingRequestedChanId)
+			forward_info_string := fmt.Sprintf(
+				"from %s to %s (%d sat, chan_id:%s->%s, htlc_id:%d)",
+				aliasFrom,
+				aliasTo,
+				event.IncomingAmountMsat/1000,
+				parse_channelID(event.IncomingCircuitKey.ChanId),
+				parse_channelID(event.OutgoingRequestedChanId),
+				event.IncomingCircuitKey.HtlcId,
+			)
 
 			response := &routerrpc.ForwardHtlcInterceptResponse{
 				IncomingCircuitKey: event.IncomingCircuitKey,
@@ -149,12 +155,7 @@ func (app *app) htlcInterceptDecision(ctx context.Context, event *routerrpc.Forw
 	if Configuration.ForwardMode == "whitelist" {
 		accept = false
 		for _, channel_id := range Configuration.ForwardWhitelist {
-			chan_id_int, err := strconv.ParseUint(channel_id, 10, 64)
-			if err != nil {
-				log.Error("Error parsing channel id %s", channel_id)
-				break
-			}
-			if event.IncomingCircuitKey.ChanId == chan_id_int {
+			if parse_channelID(event.IncomingCircuitKey.ChanId) == channel_id {
 				accept = true
 				break
 			}
@@ -162,12 +163,7 @@ func (app *app) htlcInterceptDecision(ctx context.Context, event *routerrpc.Forw
 	} else if Configuration.ForwardMode == "blacklist" {
 		accept = true
 		for _, channel_id := range Configuration.ForwardBlacklist {
-			chan_id_int, err := strconv.ParseUint(channel_id, 10, 64)
-			if err != nil {
-				log.Error("Error parsing channel id %s", channel_id)
-				break
-			}
-			if event.IncomingCircuitKey.ChanId == chan_id_int {
+			if parse_channelID(event.IncomingCircuitKey.ChanId) == channel_id {
 				accept = false
 				break
 			}

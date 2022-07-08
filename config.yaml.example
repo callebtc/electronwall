@@ -27,7 +27,7 @@ forward-mode: "blacklist"
 
 # List of channel IDs to whitelist or blacklist
 forward-whitelist:
-  - "229797930270721"
+  - "7143424x65537x0"
 forward-blacklist:
-  - "131941395398657"  
-  - "195713069809665"
+  - "12320768x65536x0"  
+  - "7929856x65537x1"
