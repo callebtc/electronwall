@@ -1,5 +1,5 @@
-# ⚡️ electronwall
-A RPC daemon for LND that listens in the background and allows (whitelist) or rejects (blacklist) incoming channels from a list of node public keys and incoming payment routings (HTLC forwards) from a list of node IDs.
+# ⚡️🛡 electronwall
+A tiny firewall for LND that can filter Lightning channel opening requests and HTLC forwards on your node. electronwall runs in the background and either allows (whitelist) or rejects (blacklist) events from a list of node public keys for channel openings, or channel IDs and channel pairs for payment routings.
 
 ![Screenshot](https://user-images.githubusercontent.com/93376500/178065589-8d591646-0494-4cfd-ae5b-5d2c93a82b5c.jpg)
 
