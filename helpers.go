@@ -19,7 +19,7 @@ func trimPubKey(pubkey []byte) string {
 }
 
 func welcome() {
-	log.Info("---- ⚡️ electronwall 0.3 ⚡️ ----")
+	log.Info("---- ⚡️ electronwall 0.3.1 ⚡️ ----")
 }
 
 // setLogger will initialize the log format
