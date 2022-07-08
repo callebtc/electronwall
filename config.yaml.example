@@ -23,7 +23,7 @@ channel-blacklist:
 # ----- HTLC forwarding -----
 
 # Mode can either be "blacklist" or "whitelist"
-forward-mode: "whitelist"
+forward-mode: "blacklist"
 
 # List of channel IDs to whitelist or blacklist
 forward-whitelist:
