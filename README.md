@@ -1,6 +1,8 @@
 # ⚡️ electronwall
 A RPC daemon for LND that listens in the background and allows (whitelist) or rejects (blacklist) incoming channels from a list of node public keys and incoming payment routings (HTLC forwards) from a list of node IDs.
 
+![Screenshot 2022-07-08 at 16 58 08-2](https://user-images.githubusercontent.com/93376500/178018529-8afe42e3-357d-4d4a-a6cd-2cf278f5163e.jpg)
+
 ## Install
 
 ### From source
