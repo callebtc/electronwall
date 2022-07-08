@@ -8,14 +8,17 @@ import (
 )
 
 var Configuration = struct {
-	Mode          string   `yaml:"mode"`
-	Host          string   `yaml:"host"`
-	MacaroonPath  string   `yaml:"macaroon_path"`
-	TLSPath       string   `yaml:"tls_path"`
-	Whitelist     []string `yaml:"whitelist"`
-	Blacklist     []string `yaml:"blacklist"`
-	RejectMessage string   `yaml:"reject_message"`
-	Workers       int      `yaml:"workers"`
+	ChannelMode          string   `yaml:"channel-mode"`
+	Host                 string   `yaml:"host"`
+	MacaroonPath         string   `yaml:"macaroon_path"`
+	TLSPath              string   `yaml:"tls-path"`
+	Debug                bool     `yaml:"debug"`
+	ChannelWhitelist     []string `yaml:"channel-whitelist"`
+	ChannelBlacklist     []string `yaml:"channel-blacklist"`
+	ChannelRejectMessage string   `yaml:"channel-reject-message"`
+	ForwardMode          string   `yaml:"forward-mode"`
+	ForwardWhitelist     []string `yaml:"forward-whitelist"`
+	ForwardBlacklist     []string `yaml:"forward-blacklist"`
 }{}
 
 func init() {
@@ -27,20 +30,39 @@ func init() {
 }
 
 func checkConfig() {
+	setLogger(Configuration.Debug)
+	welcome()
+
 	if Configuration.Host == "" {
 		panic(fmt.Errorf("no host specified in config.yaml"))
 	}
-
-	if len(Configuration.Whitelist) == 0 {
-		panic(fmt.Errorf("no accepted pubkeys specified in config.yaml"))
+	if Configuration.MacaroonPath == "" {
+		panic(fmt.Errorf("no macaroon path specified in config.yaml"))
+	}
+	if Configuration.TLSPath == "" {
+		panic(fmt.Errorf("no tls path specified in config.yaml"))
 	}
 
-	if len(Configuration.RejectMessage) > 500 {
-		log.Warnf("reject message is too long. Trimming to 500 characters.")
-		Configuration.RejectMessage = Configuration.RejectMessage[:500]
+	if len(Configuration.ChannelRejectMessage) > 500 {
+		log.Warnf("channel reject message is too long. Trimming to 500 characters.")
+		Configuration.ChannelRejectMessage = Configuration.ChannelRejectMessage[:500]
 	}
-	if len(Configuration.Mode) == 0 {
-		Configuration.Mode = "blacklist"
+
+	if len(Configuration.ChannelMode) == 0 {
+		Configuration.ChannelMode = "blacklist"
 	}
-	log.Infof("Running in %s mode", Configuration.Mode)
+	if Configuration.ChannelMode != "whitelist" && Configuration.ChannelMode != "blacklist" {
+		panic(fmt.Errorf("channel mode must be either whitelist or blacklist"))
+	}
+
+	log.Infof("Channel acceptor running in %s mode", Configuration.ForwardMode)
+
+	if len(Configuration.ForwardMode) == 0 {
+		Configuration.ForwardMode = "blacklist"
+	}
+	if Configuration.ForwardMode != "whitelist" && Configuration.ForwardMode != "blacklist" {
+		panic(fmt.Errorf("channel mode must be either whitelist or blacklist"))
+	}
+
+	log.Infof("HTLC forwarder running in %s mode", Configuration.ForwardMode)
 }

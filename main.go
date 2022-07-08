@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/hex"
-	"fmt"
 	"io/ioutil"
 	"sync"
 
@@ -21,6 +19,11 @@ type key int
 const (
 	ctxKeyWaitGroup key = iota
 )
+
+type ContextKey string
+
+var connKey ContextKey = "connKey"
+var clientKey ContextKey = "clientKey"
 
 // gets the lnd grpc connection
 func getClientConnection(ctx context.Context) (*grpc.ClientConn, error) {
@@ -54,10 +57,6 @@ func getClientConnection(ctx context.Context) (*grpc.ClientConn, error) {
 
 }
 
-func trimPubKey(pubkey []byte) string {
-	return fmt.Sprintf("%s...%s", hex.EncodeToString(pubkey)[:6], hex.EncodeToString(pubkey)[len(hex.EncodeToString(pubkey))-6:])
-}
-
 func main() {
 	ctx := context.Background()
 	conn, err := getClientConnection(ctx)
@@ -70,12 +69,14 @@ func main() {
 	ctx = context.WithValue(ctx, ctxKeyWaitGroup, &wg)
 	wg.Add(1)
 
+	ctx = context.WithValue(ctx, clientKey, client)
+	ctx = context.WithValue(ctx, connKey, conn)
+
 	// channel acceptor
-	go dispatchChannelAcceptor(ctx, conn, client)
+	go dispatchChannelAcceptor(ctx)
 
 	// htlc acceptor
-	go dispatchHTLCAcceptor(ctx, conn, client)
+	go dispatchHTLCAcceptor(ctx)
 
 	wg.Wait()
-
 }
