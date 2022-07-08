@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -149,25 +150,60 @@ func (app *app) interceptHtlcEvents(ctx context.Context, interceptor routerrpc.R
 	}
 }
 
+// htlcInterceptDecision implements the rules upon which the
+// decision is made whether or not to relay an HTLC to the next
+// peer.
+// The decision is made based on the following rules:
+// 1. Either use a whitelist (accept) or a blacklist (deny).
+// 2. If a single channel ID is used (12320768x65536x0), check the incoming ID of the HTLC against the list.
+// 3. If two channel IDs are used (7929856x65537x0->7143424x65537x0), check the incoming ID and the outgoing ID of the HTLC against the list.
 func (app *app) htlcInterceptDecision(ctx context.Context, event *routerrpc.ForwardHtlcInterceptRequest, decision_chan chan bool) {
 	var accept bool
 
-	if Configuration.ForwardMode == "whitelist" {
+	switch Configuration.ForwardMode {
+	case "whitelist":
 		accept = false
-		for _, channel_id := range Configuration.ForwardWhitelist {
-			if parse_channelID(event.IncomingCircuitKey.ChanId) == channel_id {
-				accept = true
-				break
+		for _, forward_whitelist_entry := range Configuration.ForwardWhitelist {
+			if len(strings.Split(forward_whitelist_entry, "->")) == 2 {
+				// check if channel_id is actually from-to channel
+				split := strings.Split(forward_whitelist_entry, "->")
+				from_channel_id, to_channel_id := split[0], split[1]
+				if parse_channelID(event.IncomingCircuitKey.ChanId) == from_channel_id &&
+					parse_channelID(event.OutgoingRequestedChanId) == to_channel_id {
+					accept = true
+					break
+				}
+			} else {
+				// single entry
+				if parse_channelID(event.IncomingCircuitKey.ChanId) == forward_whitelist_entry {
+					accept = true
+					break
+				}
 			}
 		}
-	} else if Configuration.ForwardMode == "blacklist" {
+	case "blacklist":
 		accept = true
-		for _, channel_id := range Configuration.ForwardBlacklist {
-			if parse_channelID(event.IncomingCircuitKey.ChanId) == channel_id {
-				accept = false
-				break
+		for _, forward_whitelist_entry := range Configuration.ForwardWhitelist {
+			if len(strings.Split(forward_whitelist_entry, "->")) == 2 {
+				// check if channel_id is actually from-to channel
+				split := strings.Split(forward_whitelist_entry, "->")
+				from_channel_id, to_channel_id := split[0], split[1]
+				if parse_channelID(event.IncomingCircuitKey.ChanId) == from_channel_id &&
+					parse_channelID(event.OutgoingRequestedChanId) == to_channel_id {
+					accept = false
+					break
+				}
+			} else {
+				// single entry
+				if parse_channelID(event.IncomingCircuitKey.ChanId) == forward_whitelist_entry {
+					accept = false
+					break
+				}
 			}
 		}
+	default:
+		err := fmt.Errorf("unknown forward mode: %s", Configuration.ForwardMode)
+		panic(err)
 	}
 	decision_chan <- accept
 }
