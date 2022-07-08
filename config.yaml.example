@@ -1,10 +1,11 @@
-# Credentials for your node
+# ----- Node credentials -----
+
 host: "127.0.0.1:10009"
 macaroon_path: "/home/bitcoin/.lnd/data/chain/bitcoin/mainnet/admin.macaroon"
 tls-path: "/home/bitcoin/.lnd/tls.cert"
 debug: true
 
-# ----- Channel accept -----
+# ----- Channel openings -----
 
 # Mode can either be "blacklist" or "whitelist"
 channel-mode: "blacklist" 
