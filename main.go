@@ -7,7 +7,7 @@ import (
 	"io/ioutil"
 	"sync"
 
-	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
+	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/lightningnetwork/lnd/macaroons"
 
 	log "github.com/sirupsen/logrus"
@@ -64,44 +64,48 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	client := lnrpc.NewLightningClient(conn)
 
 	var wg sync.WaitGroup
 	ctx = context.WithValue(ctx, ctxKeyWaitGroup, &wg)
 	wg.Add(1)
 
 	// channel acceptor
-	// go dispatchChannelAcceptor(ctx, conn, client)
+	go dispatchChannelAcceptor(ctx, conn, client)
 
-	// htlc event subscriber, reports on incoming htlc events
-	router := routerrpc.NewRouterClient(conn)
-	stream, err := router.SubscribeHtlcEvents(ctx, &routerrpc.SubscribeHtlcEventsRequest{})
-	if err != nil {
-		return
-	}
+	// htlc acceptor
+	go dispatchHTLCAcceptor(ctx, conn, client)
 
-	go func() {
-		err := processHtlcEvents(stream)
-		if err != nil {
-			log.Error("htlc events error",
-				"err", err)
-		}
-	}()
+	// // htlc event subscriber, reports on incoming htlc events
+	// router := routerrpc.NewRouterClient(conn)
+	// stream, err := router.SubscribeHtlcEvents(ctx, &routerrpc.SubscribeHtlcEventsRequest{})
+	// if err != nil {
+	// 	return
+	// }
 
-	// interceptor, decide whether to accept or reject
-	interceptor, err := router.HtlcInterceptor(ctx)
-	if err != nil {
-		return
-	}
+	// go func() {
+	// 	err := processHtlcEvents(stream)
+	// 	if err != nil {
+	// 		log.Error("htlc events error",
+	// 			"err", err)
+	// 	}
+	// }()
 
-	log.Info("HTLC Interceptor registered")
+	// // interceptor, decide whether to accept or reject
+	// interceptor, err := router.HtlcInterceptor(ctx)
+	// if err != nil {
+	// 	return
+	// }
 
-	go func() {
-		err := processInterceptor(interceptor)
-		if err != nil {
-			log.Error("interceptor error",
-				"err", err)
-		}
-	}()
+	// log.Info("HTLC Interceptor registered")
+
+	// go func() {
+	// 	err := processInterceptor(interceptor)
+	// 	if err != nil {
+	// 		log.Error("interceptor error",
+	// 			"err", err)
+	// 	}
+	// }()
 
 	wg.Wait()
 
