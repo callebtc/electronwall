@@ -14,7 +14,7 @@ go build .
 
 ### Binaries
 
-You can download a binary for your system [here](https://github.com/callebtc/electronwall/releases).
+You can download a binary for your system [here](https://github.com/callebtc/electronwall/releases). You'll still need a config file.
 
 ## Config
 Edit `config.yaml.example` and rename to `config.yaml`.
