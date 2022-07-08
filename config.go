@@ -15,6 +15,7 @@ var Configuration = struct {
 	Whitelist     []string `yaml:"whitelist"`
 	Blacklist     []string `yaml:"blacklist"`
 	RejectMessage string   `yaml:"reject_message"`
+	Workers       int      `yaml:"workers"`
 }{}
 
 func init() {

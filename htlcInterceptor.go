@@ -58,16 +58,16 @@ func logHtlcEvents(stream routerrpc.Router_SubscribeHtlcEventsClient) error {
 
 		switch event.Event.(type) {
 		case *routerrpc.HtlcEvent_SettleEvent:
-			log.Infof("HTLC SettleEvent (chan_id:%d htlc_id:%d)", event.IncomingChannelId, event.IncomingHtlcId)
+			log.Infof("HTLC SettleEvent (chan_id:%d, htlc_id:%d)", event.IncomingChannelId, event.IncomingHtlcId)
 
 		case *routerrpc.HtlcEvent_ForwardFailEvent:
-			log.Infof("HTLC ForwardFailEvent (chan_id:%d htlc_id:%d)", event.IncomingChannelId, event.IncomingHtlcId)
+			log.Infof("HTLC ForwardFailEvent (chan_id:%d, htlc_id:%d)", event.IncomingChannelId, event.IncomingHtlcId)
 
 		case *routerrpc.HtlcEvent_ForwardEvent:
-			log.Infof("HTLC ForwardEvent (chan_id:%d htlc_id:%d)", event.IncomingChannelId, event.IncomingHtlcId)
+			log.Infof("HTLC ForwardEvent (chan_id:%d, htlc_id:%d)", event.IncomingChannelId, event.IncomingHtlcId)
 
 		case *routerrpc.HtlcEvent_LinkFailEvent:
-			log.Infof("HTLC LinkFailEvent (chan_id:%d htlc_id:%d)", event.IncomingChannelId, event.IncomingHtlcId)
+			log.Infof("HTLC LinkFailEvent (chan_id:%d, htlc_id:%d)", event.IncomingChannelId, event.IncomingHtlcId)
 		}
 
 	}
@@ -81,9 +81,9 @@ func interceptHtlcEvents(interceptor routerrpc.Router_HtlcInterceptorClient) err
 		}
 
 		// decision for routing
-		log.Infof("Received HTLC. Making random 50/50 decision...")
+		log.Infof("Received HTLC. Making random decision...")
 		accept := true
-		if rand.Intn(2) == 0 {
+		if rand.Intn(10) < 8 {
 			accept = false
 		}
 
@@ -92,10 +92,10 @@ func interceptHtlcEvents(interceptor routerrpc.Router_HtlcInterceptorClient) err
 		}
 
 		if accept {
-			log.Infof("✅ Accept HTLC (%d sat, %s)", event.IncomingAmountMsat/1000, event.IncomingCircuitKey.String())
+			log.Infof("✅ Accept HTLC (%d sat, htlc_id:%d, chan_id:%d->%d)", event.IncomingAmountMsat/1000, event.IncomingCircuitKey.HtlcId, event.IncomingCircuitKey.ChanId, event.OutgoingRequestedChanId)
 			response.Action = routerrpc.ResolveHoldForwardAction_RESUME
 		} else {
-			log.Infof("❌ Reject HTLC (%d sat, %s)", event.IncomingAmountMsat/1000, event.IncomingCircuitKey.String())
+			log.Infof("❌ Reject HTLC (%d sat, htlc_id:%d, chan_id:%d->%d)", event.IncomingAmountMsat/1000, event.IncomingCircuitKey.HtlcId, event.IncomingCircuitKey.ChanId, event.OutgoingRequestedChanId)
 			response.Action = routerrpc.ResolveHoldForwardAction_FAIL
 		}
 

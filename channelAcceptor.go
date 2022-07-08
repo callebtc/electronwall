@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"sync"
 
@@ -49,7 +50,7 @@ func dispatchChannelAcceptor(ctx context.Context, conn *grpc.ClientConn, client 
 
 		res := lnrpc.ChannelAcceptResponse{}
 		if accept {
-			log.Infof("✅ [%s mode] Allow channel from %s", Configuration.Mode, trimPubKey(req.NodePubkey))
+			log.Infof("✅ [%s mode] Allow channel from %s (chan_id: %d)", Configuration.Mode, trimPubKey(req.NodePubkey), binary.BigEndian.Uint64(req.PendingChanId))
 			res = lnrpc.ChannelAcceptResponse{Accept: true,
 				PendingChanId:   req.PendingChanId,
 				CsvDelay:        req.CsvDelay,
