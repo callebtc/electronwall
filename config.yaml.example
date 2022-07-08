@@ -1,3 +1,6 @@
+# Attention: This is a yaml file. If you don't use the exact amount of spaces
+# precisely where they belong, ghost will haunt you until the end of your life.
+
 # ----- Node credentials -----
 
 host: "127.0.0.1:10009"
