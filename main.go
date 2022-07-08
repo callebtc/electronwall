@@ -2,9 +2,8 @@ package main
 
 import (
 	"context"
-	"encoding/hex"
-	"fmt"
 	"io/ioutil"
+	"sync"
 
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/lightningnetwork/lnd/macaroons"
@@ -14,6 +13,17 @@ import (
 	"google.golang.org/grpc/credentials"
 	"gopkg.in/macaroon.v2"
 )
+
+type key int
+
+const (
+	ctxKeyWaitGroup key = iota
+)
+
+type ContextKey string
+
+var connKey ContextKey = "connKey"
+var clientKey ContextKey = "clientKey"
 
 // gets the lnd grpc connection
 func getClientConnection(ctx context.Context) (*grpc.ClientConn, error) {
@@ -47,70 +57,26 @@ func getClientConnection(ctx context.Context) (*grpc.ClientConn, error) {
 
 }
 
-func trimPubKey(pubkey []byte) string {
-	return fmt.Sprintf("%s...%s", hex.EncodeToString(pubkey)[:6], hex.EncodeToString(pubkey)[len(hex.EncodeToString(pubkey))-6:])
-}
-
 func main() {
-	conn, err := getClientConnection(context.Background())
+	ctx := context.Background()
+	conn, err := getClientConnection(ctx)
 	if err != nil {
 		panic(err)
 	}
 	client := lnrpc.NewLightningClient(conn)
-	acceptClient, err := client.ChannelAcceptor(context.Background())
-	if err != nil {
-		panic(err)
-	}
-	log.Infof("Listening for incoming channel requests")
-	for {
-		req := lnrpc.ChannelAcceptRequest{}
-		err = acceptClient.RecvMsg(&req)
-		if err != nil {
-			log.Errorf(err.Error())
-		}
-		log.Infof("New channel request from %s", hex.EncodeToString(req.NodePubkey))
 
-		var accept bool
+	var wg sync.WaitGroup
+	ctx = context.WithValue(ctx, ctxKeyWaitGroup, &wg)
+	wg.Add(1)
 
-		if Configuration.Mode == "whitelist" {
-			accept = false
-			for _, pubkey := range Configuration.Whitelist {
-				if hex.EncodeToString(req.NodePubkey) == pubkey {
-					accept = true
-					break
-				}
-			}
-		} else if Configuration.Mode == "blacklist" {
-			accept = true
-			for _, pubkey := range Configuration.Blacklist {
-				if hex.EncodeToString(req.NodePubkey) == pubkey {
-					accept = false
-					break
-				}
-			}
-		}
+	ctx = context.WithValue(ctx, clientKey, client)
+	ctx = context.WithValue(ctx, connKey, conn)
 
-		res := lnrpc.ChannelAcceptResponse{}
-		if accept {
-			log.Infof("✅ [%s mode] Allow channel from %s", Configuration.Mode, trimPubKey(req.NodePubkey))
-			res = lnrpc.ChannelAcceptResponse{Accept: true,
-				PendingChanId:   req.PendingChanId,
-				CsvDelay:        req.CsvDelay,
-				MaxHtlcCount:    req.MaxAcceptedHtlcs,
-				ReserveSat:      req.ChannelReserve,
-				InFlightMaxMsat: req.MaxValueInFlight,
-				MinHtlcIn:       req.MinHtlc,
-			}
+	// channel acceptor
+	go dispatchChannelAcceptor(ctx)
 
-		} else {
-			log.Infof("❌ [%s mode] Deny channel from %s", Configuration.Mode, trimPubKey(req.NodePubkey))
-			res = lnrpc.ChannelAcceptResponse{Accept: false,
-				Error: Configuration.RejectMessage}
-		}
-		err = acceptClient.Send(&res)
-		if err != nil {
-			log.Errorf(err.Error())
-		}
-	}
+	// htlc acceptor
+	go dispatchHTLCAcceptor(ctx)
 
+	wg.Wait()
 }
