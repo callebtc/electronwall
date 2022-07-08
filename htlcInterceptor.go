@@ -14,28 +14,6 @@ import (
 	"google.golang.org/grpc"
 )
 
-// type circuitKey struct {
-// 	channel uint64
-// 	htlc    uint64
-// }
-
-// type interceptEvent struct {
-// 	circuitKey
-// 	valueMsat int64
-// 	resume    chan bool
-// }
-// type htlcAcceptor struct {
-// 	interceptChan chan interceptEvent
-// 	resolveChan   chan circuitKey
-// }
-
-// func newHtlcAcceptor() *htlcAcceptor {
-// 	return &htlcAcceptor{
-// 		interceptChan: make(chan interceptEvent),
-// 		resolveChan:   make(chan circuitKey),
-// 	}
-// }
-
 func dispatchHTLCAcceptor(ctx context.Context) {
 	conn := ctx.Value(connKey).(*grpc.ClientConn)
 	router := routerrpc.NewRouterClient(conn)
@@ -228,31 +206,3 @@ func getPubKeyFromChannel(ctx context.Context, chan_id uint64) (*channelEdge, er
 		node2Pub: node2Pub,
 	}, nil
 }
-
-// func getPubKey(channel uint64) (route.Vertex, error) {
-// 	pubkey, ok := p.pubkeyMap[channel]
-// 	if ok {
-// 		return pubkey, nil
-// 	}
-
-// 	edge, err := p.client.getChanInfo(channel)
-// 	if err != nil {
-// 		return route.Vertex{}, err
-// 	}
-
-// 	var remotePubkey route.Vertex
-// 	switch {
-// 	case edge.node1Pub == p.identity:
-// 		remotePubkey = edge.node2Pub
-
-// 	case edge.node2Pub == p.identity:
-// 		remotePubkey = edge.node1Pub
-
-// 	default:
-// 		return route.Vertex{}, errors.New("identity not found in chan info")
-// 	}
-
-// 	p.pubkeyMap[channel] = remotePubkey
-
-// 	return remotePubkey, nil
-// }
