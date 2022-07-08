@@ -1,5 +1,5 @@
-# LND whitelist
-A RPC daemon for LND that listens in the background and allows (whitelist) or denies (blacklist) incoming channels from a list of node public keys.
+# ⚡️ electronwall
+A RPC daemon for LND that listens in the background and allows (whitelist) or denies (blacklist) incoming channels from a list of node public keys and payment routings (HTLC forwards) from a list of node IDs.
 
 ## Install
 
