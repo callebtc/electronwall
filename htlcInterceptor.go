@@ -11,15 +11,16 @@ import (
 )
 
 func dispatchHTLCAcceptor(ctx context.Context, conn *grpc.ClientConn, client lnrpc.LightningClient) {
-	// htlc event subscriber, reports on incoming htlc events
 	router := routerrpc.NewRouterClient(conn)
+
+	// htlc event subscriber, reports on incoming htlc events
 	stream, err := router.SubscribeHtlcEvents(ctx, &routerrpc.SubscribeHtlcEventsRequest{})
 	if err != nil {
 		return
 	}
 
 	go func() {
-		err := processHtlcEvents(stream)
+		err := logHtlcEvents(stream)
 		if err != nil {
 			log.Error("htlc events error",
 				"err", err)
@@ -33,7 +34,7 @@ func dispatchHTLCAcceptor(ctx context.Context, conn *grpc.ClientConn, client lnr
 	}
 
 	go func() {
-		err := processInterceptor(interceptor)
+		err := interceptHtlcEvents(interceptor)
 		if err != nil {
 			log.Error("interceptor error",
 				"err", err)
@@ -43,13 +44,14 @@ func dispatchHTLCAcceptor(ctx context.Context, conn *grpc.ClientConn, client lnr
 	log.Info("Listening for incoming HTLCs")
 }
 
-func processHtlcEvents(stream routerrpc.Router_SubscribeHtlcEventsClient) error {
+func logHtlcEvents(stream routerrpc.Router_SubscribeHtlcEventsClient) error {
 	for {
 		event, err := stream.Recv()
 		if err != nil {
 			return err
 		}
 
+		// we only care about HTLC forward events
 		if event.EventType != routerrpc.HtlcEvent_FORWARD {
 			continue
 		}
@@ -71,7 +73,7 @@ func processHtlcEvents(stream routerrpc.Router_SubscribeHtlcEventsClient) error 
 	}
 }
 
-func processInterceptor(interceptor routerrpc.Router_HtlcInterceptorClient) error {
+func interceptHtlcEvents(interceptor routerrpc.Router_HtlcInterceptorClient) error {
 	for {
 		event, err := interceptor.Recv()
 		if err != nil {
