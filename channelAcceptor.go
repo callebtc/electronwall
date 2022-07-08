@@ -11,8 +11,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func dispatchChannelAcceptor(ctx context.Context) {
-	client := ctx.Value(clientKey).(lnrpc.LightningClient)
+func (app *app) dispatchChannelAcceptor(ctx context.Context) {
+	client := app.client
 
 	// wait group for channel acceptor
 	defer ctx.Value(ctxKeyWaitGroup).(*sync.WaitGroup).Done()
@@ -27,10 +27,11 @@ func dispatchChannelAcceptor(ctx context.Context) {
 		err = acceptClient.RecvMsg(&req)
 		if err != nil {
 			log.Errorf(err.Error())
+			return
 		}
 
 		// print the incoming channel request
-		alias, err := getNodeAlias(ctx, hex.EncodeToString(req.NodePubkey))
+		alias, err := app.getNodeAlias(ctx, hex.EncodeToString(req.NodePubkey))
 		if err != nil {
 			log.Errorf(err.Error())
 		}

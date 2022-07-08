@@ -8,7 +8,11 @@ import (
 )
 
 func trimPubKey(pubkey []byte) string {
-	return fmt.Sprintf("%s...%s", hex.EncodeToString(pubkey)[:6], hex.EncodeToString(pubkey)[len(hex.EncodeToString(pubkey))-6:])
+	if len(pubkey) > 12 {
+		return fmt.Sprintf("%s...%s", hex.EncodeToString(pubkey)[:6], hex.EncodeToString(pubkey)[len(hex.EncodeToString(pubkey))-6:])
+	} else {
+		return hex.EncodeToString(pubkey)
+	}
 }
 
 func welcome() {

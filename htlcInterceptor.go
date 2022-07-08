@@ -11,11 +11,10 @@ import (
 	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
 	"github.com/lightningnetwork/lnd/routing/route"
 	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
 )
 
-func dispatchHTLCAcceptor(ctx context.Context) {
-	conn := ctx.Value(connKey).(*grpc.ClientConn)
+func (app *app) dispatchHTLCAcceptor(ctx context.Context) {
+	conn := app.conn
 	router := routerrpc.NewRouterClient(conn)
 
 	// htlc event subscriber, reports on incoming htlc events
@@ -25,7 +24,7 @@ func dispatchHTLCAcceptor(ctx context.Context) {
 	}
 
 	go func() {
-		err := logHtlcEvents(ctx, stream)
+		err := app.logHtlcEvents(ctx, stream)
 		if err != nil {
 			log.Error("htlc events error",
 				"err", err)
@@ -39,7 +38,7 @@ func dispatchHTLCAcceptor(ctx context.Context) {
 	}
 
 	go func() {
-		err := interceptHtlcEvents(ctx, interceptor)
+		err := app.interceptHtlcEvents(ctx, interceptor)
 		if err != nil {
 			log.Error("interceptor error",
 				"err", err)
@@ -49,7 +48,7 @@ func dispatchHTLCAcceptor(ctx context.Context) {
 	log.Info("Listening for incoming HTLCs")
 }
 
-func logHtlcEvents(ctx context.Context, stream routerrpc.Router_SubscribeHtlcEventsClient) error {
+func (app *app) logHtlcEvents(ctx context.Context, stream routerrpc.Router_SubscribeHtlcEventsClient) error {
 	for {
 		event, err := stream.Recv()
 		if err != nil {
@@ -78,7 +77,7 @@ func logHtlcEvents(ctx context.Context, stream routerrpc.Router_SubscribeHtlcEve
 	}
 }
 
-func interceptHtlcEvents(ctx context.Context, interceptor routerrpc.Router_HtlcInterceptorClient) error {
+func (app *app) interceptHtlcEvents(ctx context.Context, interceptor routerrpc.Router_HtlcInterceptorClient) error {
 	for {
 		event, err := interceptor.Recv()
 		if err != nil {
@@ -87,23 +86,25 @@ func interceptHtlcEvents(ctx context.Context, interceptor routerrpc.Router_HtlcI
 		go func() {
 			// decision for routing
 			decision_chan := make(chan bool, 1)
-			go htlcInterceptDecision(ctx, event, decision_chan)
+			go app.htlcInterceptDecision(ctx, event, decision_chan)
 
-			channelEdge, err := getPubKeyFromChannel(ctx, event.IncomingCircuitKey.ChanId)
+			channelEdge, err := app.getPubKeyFromChannel(ctx, event.IncomingCircuitKey.ChanId)
 			if err != nil {
 				log.Error("Error getting pubkey for channel %d", event.IncomingCircuitKey.ChanId)
 			}
-			alias, err := getNodeAlias(ctx, channelEdge.node1Pub.String())
-			if err != nil {
-				log.Errorf(err.Error())
-			}
 
-			var forward_info_string string
-			if alias != "" {
-				forward_info_string = fmt.Sprintf("from %s (%d sat, htlc_id:%d, chan_id:%d->%d)", alias, event.IncomingAmountMsat/1000, event.IncomingCircuitKey.HtlcId, event.IncomingCircuitKey.ChanId, event.OutgoingRequestedChanId)
+			var remote_pubkey, alias string
+			if channelEdge.node1Pub.String() != app.myPubkey {
+				remote_pubkey = channelEdge.node1Pub.String()
 			} else {
-				forward_info_string = fmt.Sprintf("(%d sat, htlc_id:%d, chan_id:%d->%d)", event.IncomingAmountMsat/1000, event.IncomingCircuitKey.HtlcId, event.IncomingCircuitKey.ChanId, event.OutgoingRequestedChanId)
+				remote_pubkey = channelEdge.node2Pub.String()
 			}
+			alias, err = app.getNodeAlias(ctx, remote_pubkey)
+			if err != nil {
+				log.Error("Error getting alias for node %s", remote_pubkey)
+			}
+			forward_info_string := fmt.Sprintf("from %s (%d sat, htlc_id:%d, chan_id:%d->%d)", alias, event.IncomingAmountMsat/1000, event.IncomingCircuitKey.HtlcId, event.IncomingCircuitKey.ChanId, event.OutgoingRequestedChanId)
+
 			response := &routerrpc.ForwardHtlcInterceptResponse{
 				IncomingCircuitKey: event.IncomingCircuitKey,
 			}
@@ -122,7 +123,7 @@ func interceptHtlcEvents(ctx context.Context, interceptor routerrpc.Router_HtlcI
 	}
 }
 
-func htlcInterceptDecision(ctx context.Context, event *routerrpc.ForwardHtlcInterceptRequest, decision_chan chan bool) {
+func (app *app) htlcInterceptDecision(ctx context.Context, event *routerrpc.ForwardHtlcInterceptRequest, decision_chan chan bool) {
 	var accept bool
 
 	if Configuration.ForwardMode == "whitelist" {
@@ -156,8 +157,8 @@ func htlcInterceptDecision(ctx context.Context, event *routerrpc.ForwardHtlcInte
 }
 
 // Heavily inspired by by Joost Jager's circuitbreaker
-func getNodeAlias(ctx context.Context, pubkey string) (string, error) {
-	client := ctx.Value(clientKey).(lnrpc.LightningClient)
+func (app *app) getNodeAlias(ctx context.Context, pubkey string) (string, error) {
+	client := app.client
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
@@ -175,12 +176,25 @@ func getNodeAlias(ctx context.Context, pubkey string) (string, error) {
 	return info.Node.Alias, nil
 }
 
+func (app *app) getMyPubkey(ctx context.Context) (string, error) {
+	client := app.client
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	info, err := client.GetInfo(ctx, &lnrpc.GetInfoRequest{})
+	if err != nil {
+		return "", err
+	}
+
+	return info.IdentityPubkey, nil
+}
+
 type channelEdge struct {
 	node1Pub, node2Pub route.Vertex
 }
 
-func getPubKeyFromChannel(ctx context.Context, chan_id uint64) (*channelEdge, error) {
-	client := ctx.Value(clientKey).(lnrpc.LightningClient)
+func (app *app) getPubKeyFromChannel(ctx context.Context, chan_id uint64) (*channelEdge, error) {
+	client := app.client
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 

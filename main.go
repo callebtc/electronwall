@@ -20,10 +20,11 @@ const (
 	ctxKeyWaitGroup key = iota
 )
 
-type ContextKey string
-
-var connKey ContextKey = "connKey"
-var clientKey ContextKey = "clientKey"
+type app struct {
+	client   lnrpc.LightningClient
+	conn     *grpc.ClientConn
+	myPubkey string
+}
 
 // gets the lnd grpc connection
 func getClientConnection(ctx context.Context) (*grpc.ClientConn, error) {
@@ -59,24 +60,36 @@ func getClientConnection(ctx context.Context) (*grpc.ClientConn, error) {
 
 func main() {
 	ctx := context.Background()
-	conn, err := getClientConnection(ctx)
-	if err != nil {
-		panic(err)
+	for {
+		conn, err := getClientConnection(ctx)
+		if err != nil {
+			log.Errorf("Could not connect to lnd: %s", err)
+			return
+		}
+		client := lnrpc.NewLightningClient(conn)
+
+		app := app{
+			client: client,
+			conn:   conn,
+		}
+		app.myPubkey, err = app.getMyPubkey(ctx)
+		if err != nil {
+			log.Errorf("Could not get my pubkey: %s", err)
+			return
+		}
+
+		var wg sync.WaitGroup
+		ctx = context.WithValue(ctx, ctxKeyWaitGroup, &wg)
+		wg.Add(1)
+
+		// channel acceptor
+		go app.dispatchChannelAcceptor(ctx)
+
+		// htlc acceptor
+		go app.dispatchHTLCAcceptor(ctx)
+
+		wg.Wait()
+		log.Info("All routines stopped. Waiting for new connection.")
 	}
-	client := lnrpc.NewLightningClient(conn)
 
-	var wg sync.WaitGroup
-	ctx = context.WithValue(ctx, ctxKeyWaitGroup, &wg)
-	wg.Add(1)
-
-	ctx = context.WithValue(ctx, clientKey, client)
-	ctx = context.WithValue(ctx, connKey, conn)
-
-	// channel acceptor
-	go dispatchChannelAcceptor(ctx)
-
-	// htlc acceptor
-	go dispatchHTLCAcceptor(ctx)
-
-	wg.Wait()
 }
