@@ -1,5 +1,5 @@
 # ⚡️ electronwall
-A RPC daemon for LND that listens in the background and allows (whitelist) or denies (blacklist) incoming channels from a list of node public keys and payment routings (HTLC forwards) from a list of node IDs.
+A RPC daemon for LND that listens in the background and allows (whitelist) or rejects (blacklist) incoming channels from a list of node public keys and incoming payment routings (HTLC forwards) from a list of node IDs.
 
 ## Install
 
@@ -14,7 +14,7 @@ go build .
 
 ### Binaries
 
-You can download a binary for your system [here](https://github.com/callebtc/electronwall/releases).
+You can download a binary for your system [here](https://github.com/callebtc/electronwall/releases). You'll still need a config file.
 
 ## Config
 Edit `config.yaml.example` and rename to `config.yaml`.
