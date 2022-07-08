@@ -93,26 +93,43 @@ func (app *app) interceptHtlcEvents(ctx context.Context, interceptor routerrpc.R
 				log.Error("Error getting pubkey for channel %d", event.IncomingCircuitKey.ChanId)
 			}
 
-			var remote_pubkey, alias string
+			var pubkeyFrom, aliasFrom, pubkeyTo, aliasTo string
 			if channelEdge.node1Pub.String() != app.myPubkey {
-				remote_pubkey = channelEdge.node1Pub.String()
+				pubkeyFrom = channelEdge.node1Pub.String()
 			} else {
-				remote_pubkey = channelEdge.node2Pub.String()
+				pubkeyFrom = channelEdge.node2Pub.String()
 			}
-			alias, err = app.getNodeAlias(ctx, remote_pubkey)
+			aliasFrom, err = app.getNodeAlias(ctx, pubkeyFrom)
 			if err != nil {
-				log.Error("Error getting alias for node %s", remote_pubkey)
+				aliasFrom = trimPubKey([]byte(pubkeyFrom))
+				log.Error("Error getting alias for node %s", aliasFrom)
 			}
-			forward_info_string := fmt.Sprintf("from %s (%d sat, htlc_id:%d, chan_id:%d->%d)", alias, event.IncomingAmountMsat/1000, event.IncomingCircuitKey.HtlcId, event.IncomingCircuitKey.ChanId, event.OutgoingRequestedChanId)
+
+			channelEdgeTo, err := app.getPubKeyFromChannel(ctx, event.OutgoingRequestedChanId)
+			if err != nil {
+				log.Error("Error getting pubkey for channel %d", event.OutgoingRequestedChanId)
+			}
+			if channelEdgeTo.node1Pub.String() != app.myPubkey {
+				pubkeyTo = channelEdgeTo.node1Pub.String()
+			} else {
+				pubkeyTo = channelEdgeTo.node2Pub.String()
+			}
+			aliasTo, err = app.getNodeAlias(ctx, pubkeyTo)
+			if err != nil {
+				aliasTo = trimPubKey([]byte(pubkeyTo))
+				log.Error("Error getting alias for node %s", aliasTo)
+			}
+
+			forward_info_string := fmt.Sprintf("from %s to %s (%d sat, htlc_id:%d, chan_id:%d->%d)", aliasFrom, aliasTo, event.IncomingAmountMsat/1000, event.IncomingCircuitKey.HtlcId, event.IncomingCircuitKey.ChanId, event.OutgoingRequestedChanId)
 
 			response := &routerrpc.ForwardHtlcInterceptResponse{
 				IncomingCircuitKey: event.IncomingCircuitKey,
 			}
 			if <-decision_chan {
-				log.Infof("✅ [forward-mode %s] Accept HTLC %s", Configuration.ForwardMode, forward_info_string)
+				log.Infof("✅ [forward %s] Accept HTLC %s", Configuration.ForwardMode, forward_info_string)
 				response.Action = routerrpc.ResolveHoldForwardAction_RESUME
 			} else {
-				log.Infof("❌ [forward-mode %s] Reject HTLC %s", Configuration.ForwardMode, forward_info_string)
+				log.Infof("❌ [forward %s] Reject HTLC %s", Configuration.ForwardMode, forward_info_string)
 				response.Action = routerrpc.ResolveHoldForwardAction_FAIL
 			}
 			err = interceptor.Send(response)

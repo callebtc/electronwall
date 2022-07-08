@@ -72,7 +72,7 @@ func (app *app) dispatchChannelAcceptor(ctx context.Context) {
 
 		res := lnrpc.ChannelAcceptResponse{}
 		if accept {
-			log.Infof("✅ [channel-mode %s] Allow channel %s", Configuration.ChannelMode, channel_info_string)
+			log.Infof("✅ [channel %s] Allow channel %s", Configuration.ChannelMode, channel_info_string)
 			res = lnrpc.ChannelAcceptResponse{Accept: true,
 				PendingChanId:   req.PendingChanId,
 				CsvDelay:        req.CsvDelay,
@@ -83,7 +83,7 @@ func (app *app) dispatchChannelAcceptor(ctx context.Context) {
 			}
 
 		} else {
-			log.Infof("❌ [channel-mode %s] Reject channel %s", Configuration.ChannelMode, channel_info_string)
+			log.Infof("❌ [channel %s] Reject channel %s", Configuration.ChannelMode, channel_info_string)
 			res = lnrpc.ChannelAcceptResponse{Accept: false,
 				Error: Configuration.ChannelRejectMessage}
 		}
