@@ -55,7 +55,7 @@ func checkConfig() {
 		panic(fmt.Errorf("channel mode must be either whitelist or blacklist"))
 	}
 
-	log.Infof("Channel acceptor running in %s mode", Configuration.ForwardMode)
+	log.Infof("Channel acceptor running in %s mode", Configuration.ChannelMode)
 
 	if len(Configuration.ForwardMode) == 0 {
 		Configuration.ForwardMode = "blacklist"
