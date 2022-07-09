@@ -11,6 +11,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// dispatchChannelAcceptor is the channel acceptor event loop
 func (app *app) dispatchChannelAcceptor(ctx context.Context) {
 	client := app.client
 	// wait group for channel acceptor
@@ -20,7 +21,7 @@ func (app *app) dispatchChannelAcceptor(ctx context.Context) {
 	if err != nil {
 		panic(err)
 	}
-	log.Infof("Listening for incoming channel requests")
+	log.Infof("[channel] Listening for incoming channel requests")
 	for {
 		req := lnrpc.ChannelAcceptRequest{}
 		err = acceptClient.RecvMsg(&req)
@@ -40,7 +41,7 @@ func (app *app) dispatchChannelAcceptor(ctx context.Context) {
 		} else {
 			node_info_string = hex.EncodeToString(req.NodePubkey)
 		}
-		log.Debugf("New channel request from %s", node_info_string)
+		log.Debugf("[channel] New channel request from %s", node_info_string)
 
 		var accept bool
 
@@ -71,7 +72,7 @@ func (app *app) dispatchChannelAcceptor(ctx context.Context) {
 
 		res := lnrpc.ChannelAcceptResponse{}
 		if accept {
-			log.Infof("✅ [channel %s] Allow channel %s", Configuration.ChannelMode, channel_info_string)
+			log.Infof("[channel] ✅ Allow channel %s", channel_info_string)
 			res = lnrpc.ChannelAcceptResponse{Accept: true,
 				PendingChanId:   req.PendingChanId,
 				CsvDelay:        req.CsvDelay,
@@ -82,7 +83,7 @@ func (app *app) dispatchChannelAcceptor(ctx context.Context) {
 			}
 
 		} else {
-			log.Infof("❌ [channel %s] Deny channel %s", Configuration.ChannelMode, channel_info_string)
+			log.Infof("[channel] ❌ Deny channel %s", channel_info_string)
 			res = lnrpc.ChannelAcceptResponse{Accept: false,
 				Error: Configuration.ChannelRejectMessage}
 		}

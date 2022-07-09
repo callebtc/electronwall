@@ -14,6 +14,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// dispatchHTLCAcceptor is the HTLC acceptor event loop
 func (app *app) dispatchHTLCAcceptor(ctx context.Context) {
 	// wait group for channel acceptor
 	defer ctx.Value(ctxKeyWaitGroup).(*sync.WaitGroup).Done()
@@ -48,9 +49,10 @@ func (app *app) dispatchHTLCAcceptor(ctx context.Context) {
 		}
 	}()
 
-	log.Info("Listening for incoming HTLCs")
+	log.Info("[forward] Listening for incoming HTLCs")
 }
 
+// logHtlcEvents reports on incoming htlc events
 func (app *app) logHtlcEvents(ctx context.Context, stream routerrpc.Router_SubscribeHtlcEventsClient) error {
 	for {
 		event, err := stream.Recv()
@@ -65,21 +67,22 @@ func (app *app) logHtlcEvents(ctx context.Context, stream routerrpc.Router_Subsc
 
 		switch event.Event.(type) {
 		case *routerrpc.HtlcEvent_SettleEvent:
-			log.Debugf("HTLC SettleEvent (chan_id:%s, htlc_id:%d)", parse_channelID(event.IncomingChannelId), event.IncomingHtlcId)
+			log.Debugf("[forward] ⚡️ HTLC SettleEvent (chan_id:%s, htlc_id:%d)", parse_channelID(event.IncomingChannelId), event.IncomingHtlcId)
 
 		case *routerrpc.HtlcEvent_ForwardFailEvent:
-			log.Debugf("HTLC ForwardFailEvent (chan_id:%s, htlc_id:%d)", parse_channelID(event.IncomingChannelId), event.IncomingHtlcId)
+			log.Debugf("[forward] HTLC ForwardFailEvent (chan_id:%s, htlc_id:%d)", parse_channelID(event.IncomingChannelId), event.IncomingHtlcId)
 
 		case *routerrpc.HtlcEvent_ForwardEvent:
-			log.Debugf("HTLC ForwardEvent (chan_id:%s, htlc_id:%d)", parse_channelID(event.IncomingChannelId), event.IncomingHtlcId)
+			log.Debugf("[forward] HTLC ForwardEvent (chan_id:%s, htlc_id:%d)", parse_channelID(event.IncomingChannelId), event.IncomingHtlcId)
 
 		case *routerrpc.HtlcEvent_LinkFailEvent:
-			log.Debugf("HTLC LinkFailEvent (chan_id:%s, htlc_id:%d)", parse_channelID(event.IncomingChannelId), event.IncomingHtlcId)
+			log.Debugf("[forward] HTLC LinkFailEvent (chan_id:%s, htlc_id:%d)", parse_channelID(event.IncomingChannelId), event.IncomingHtlcId)
 		}
 
 	}
 }
 
+// interceptHtlcEvents intercepts incoming htlc events
 func (app *app) interceptHtlcEvents(ctx context.Context, interceptor routerrpc.Router_HtlcInterceptorClient) error {
 	for {
 		event, err := interceptor.Recv()
@@ -93,7 +96,7 @@ func (app *app) interceptHtlcEvents(ctx context.Context, interceptor routerrpc.R
 
 			channelEdge, err := app.getPubKeyFromChannel(ctx, event.IncomingCircuitKey.ChanId)
 			if err != nil {
-				log.Error("Error getting pubkey for channel %s", parse_channelID(event.IncomingCircuitKey.ChanId))
+				log.Error("[forward] Error getting pubkey for channel %s", parse_channelID(event.IncomingCircuitKey.ChanId))
 			}
 
 			var pubkeyFrom, aliasFrom, pubkeyTo, aliasTo string
@@ -105,11 +108,11 @@ func (app *app) interceptHtlcEvents(ctx context.Context, interceptor routerrpc.R
 			aliasFrom, err = app.getNodeAlias(ctx, pubkeyFrom)
 			if err != nil {
 				aliasFrom = trimPubKey([]byte(pubkeyFrom))
-				log.Error("Error getting alias for node %s", aliasFrom)
+				log.Error("[forward] Error getting alias for node %s", aliasFrom)
 			}
 			channelEdgeTo, err := app.getPubKeyFromChannel(ctx, event.OutgoingRequestedChanId)
 			if err != nil {
-				log.Error("Error getting pubkey for channel %s", parse_channelID(event.OutgoingRequestedChanId))
+				log.Error("[forward] Error getting pubkey for channel %s", parse_channelID(event.OutgoingRequestedChanId))
 			}
 			if channelEdgeTo.node1Pub.String() != app.myPubkey {
 				pubkeyTo = channelEdgeTo.node1Pub.String()
@@ -119,7 +122,7 @@ func (app *app) interceptHtlcEvents(ctx context.Context, interceptor routerrpc.R
 			aliasTo, err = app.getNodeAlias(ctx, pubkeyTo)
 			if err != nil {
 				aliasTo = trimPubKey([]byte(pubkeyTo))
-				log.Error("Error getting alias for node %s", aliasTo)
+				log.Error("[forward] Error getting alias for node %s", aliasTo)
 			}
 
 			forward_info_string := fmt.Sprintf(
@@ -136,10 +139,10 @@ func (app *app) interceptHtlcEvents(ctx context.Context, interceptor routerrpc.R
 				IncomingCircuitKey: event.IncomingCircuitKey,
 			}
 			if <-decision_chan {
-				log.Infof("✅ [forward %s] Allow HTLC %s", Configuration.ForwardMode, forward_info_string)
+				log.Infof("[forward] ✅ Allow HTLC %s", Configuration.ForwardMode, forward_info_string)
 				response.Action = routerrpc.ResolveHoldForwardAction_RESUME
 			} else {
-				log.Infof("❌ [forward %s] Deny HTLC %s", Configuration.ForwardMode, forward_info_string)
+				log.Infof("[forward] ❌ Deny HTLC %s", Configuration.ForwardMode, forward_info_string)
 				response.Action = routerrpc.ResolveHoldForwardAction_FAIL
 			}
 			err = interceptor.Send(response)
@@ -208,6 +211,8 @@ func (app *app) htlcInterceptDecision(ctx context.Context, event *routerrpc.Forw
 }
 
 // Heavily inspired by by Joost Jager's circuitbreaker
+
+// getNodeAlias returns the alias of a node pubkey
 func (app *app) getNodeAlias(ctx context.Context, pubkey string) (string, error) {
 	client := app.client
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -227,6 +232,7 @@ func (app *app) getNodeAlias(ctx context.Context, pubkey string) (string, error)
 	return info.Node.Alias, nil
 }
 
+// getMyPubkey returns the pubkey of my own node
 func (app *app) getMyPubkey(ctx context.Context) (string, error) {
 	client := app.client
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -244,6 +250,7 @@ type channelEdge struct {
 	node1Pub, node2Pub route.Vertex
 }
 
+// getPubKeyFromChannel returns the pubkey of the remote node in a channel
 func (app *app) getPubKeyFromChannel(ctx context.Context, chan_id uint64) (*channelEdge, error) {
 	client := app.client
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)

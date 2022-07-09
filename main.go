@@ -78,6 +78,7 @@ func main() {
 			log.Errorf("Could not get my pubkey: %s", err)
 			continue
 		}
+		log.Info("My pubkey: ", app.myPubkey)
 
 		var wg sync.WaitGroup
 		ctx = context.WithValue(ctx, ctxKeyWaitGroup, &wg)
