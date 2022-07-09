@@ -159,11 +159,6 @@ func (app *app) interceptHtlcEvents(ctx context.Context, interceptor routerrpc.R
 // 3. If two channel IDs are used (7929856x65537x0->7143424x65537x0), check the incoming ID and the outgoing ID of the HTLC against the list.
 func (app *app) htlcInterceptDecision(ctx context.Context, event *routerrpc.ForwardHtlcInterceptRequest, decision_chan chan bool) {
 	var accept bool
-
-	// sleep for 10 seconds
-	log.Infof("Sleeping for 15 seconds")
-	time.Sleep(15 * time.Second)
-
 	switch Configuration.ForwardMode {
 	case "allowlist":
 		accept = false
