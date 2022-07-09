@@ -13,12 +13,12 @@ var Configuration = struct {
 	MacaroonPath         string   `yaml:"macaroon_path"`
 	TLSPath              string   `yaml:"tls-path"`
 	Debug                bool     `yaml:"debug"`
-	ChannelWhitelist     []string `yaml:"channel-whitelist"`
-	ChannelBlacklist     []string `yaml:"channel-blacklist"`
+	ChannelAllowlist     []string `yaml:"channel-allowlist"`
+	ChannelDenylist      []string `yaml:"channel-denylist"`
 	ChannelRejectMessage string   `yaml:"channel-reject-message"`
 	ForwardMode          string   `yaml:"forward-mode"`
-	ForwardWhitelist     []string `yaml:"forward-whitelist"`
-	ForwardBlacklist     []string `yaml:"forward-blacklist"`
+	ForwardAllowlist     []string `yaml:"forward-allowlist"`
+	ForwardDenylist      []string `yaml:"forward-denylist"`
 }{}
 
 func init() {
@@ -49,19 +49,19 @@ func checkConfig() {
 	}
 
 	if len(Configuration.ChannelMode) == 0 {
-		Configuration.ChannelMode = "blacklist"
+		Configuration.ChannelMode = "denylist"
 	}
-	if Configuration.ChannelMode != "whitelist" && Configuration.ChannelMode != "blacklist" {
-		panic(fmt.Errorf("channel mode must be either whitelist or blacklist"))
+	if Configuration.ChannelMode != "allowlist" && Configuration.ChannelMode != "denylist" {
+		panic(fmt.Errorf("channel mode must be either allowlist or denylist"))
 	}
 
 	log.Infof("Channel acceptor running in %s mode", Configuration.ChannelMode)
 
 	if len(Configuration.ForwardMode) == 0 {
-		Configuration.ForwardMode = "blacklist"
+		Configuration.ForwardMode = "denylist"
 	}
-	if Configuration.ForwardMode != "whitelist" && Configuration.ForwardMode != "blacklist" {
-		panic(fmt.Errorf("channel mode must be either whitelist or blacklist"))
+	if Configuration.ForwardMode != "allowlist" && Configuration.ForwardMode != "denylist" {
+		panic(fmt.Errorf("channel mode must be either allowlist or denylist"))
 	}
 
 	log.Infof("HTLC forwarder running in %s mode", Configuration.ForwardMode)

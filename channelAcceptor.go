@@ -44,17 +44,17 @@ func (app *app) dispatchChannelAcceptor(ctx context.Context) {
 
 		var accept bool
 
-		if Configuration.ChannelMode == "whitelist" {
+		if Configuration.ChannelMode == "allowlist" {
 			accept = false
-			for _, pubkey := range Configuration.ChannelWhitelist {
+			for _, pubkey := range Configuration.ChannelAllowlist {
 				if hex.EncodeToString(req.NodePubkey) == pubkey {
 					accept = true
 					break
 				}
 			}
-		} else if Configuration.ChannelMode == "blacklist" {
+		} else if Configuration.ChannelMode == "denylist" {
 			accept = true
-			for _, pubkey := range Configuration.ChannelBlacklist {
+			for _, pubkey := range Configuration.ChannelDenylist {
 				if hex.EncodeToString(req.NodePubkey) == pubkey {
 					accept = false
 					break

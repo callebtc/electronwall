@@ -154,19 +154,23 @@ func (app *app) interceptHtlcEvents(ctx context.Context, interceptor routerrpc.R
 // decision is made whether or not to relay an HTLC to the next
 // peer.
 // The decision is made based on the following rules:
-// 1. Either use a whitelist (accept) or a blacklist (deny).
+// 1. Either use a allowlist or a denylist.
 // 2. If a single channel ID is used (12320768x65536x0), check the incoming ID of the HTLC against the list.
 // 3. If two channel IDs are used (7929856x65537x0->7143424x65537x0), check the incoming ID and the outgoing ID of the HTLC against the list.
 func (app *app) htlcInterceptDecision(ctx context.Context, event *routerrpc.ForwardHtlcInterceptRequest, decision_chan chan bool) {
 	var accept bool
 
+	// sleep for 10 seconds
+	log.Infof("Sleeping for 15 seconds")
+	time.Sleep(15 * time.Second)
+
 	switch Configuration.ForwardMode {
-	case "whitelist":
+	case "allowlist":
 		accept = false
-		for _, forward_whitelist_entry := range Configuration.ForwardWhitelist {
-			if len(strings.Split(forward_whitelist_entry, "->")) == 2 {
+		for _, forward_allowlist_entry := range Configuration.ForwardAllowlist {
+			if len(strings.Split(forward_allowlist_entry, "->")) == 2 {
 				// check if channel_id is actually from-to channel
-				split := strings.Split(forward_whitelist_entry, "->")
+				split := strings.Split(forward_allowlist_entry, "->")
 				from_channel_id, to_channel_id := split[0], split[1]
 				if parse_channelID(event.IncomingCircuitKey.ChanId) == from_channel_id &&
 					parse_channelID(event.OutgoingRequestedChanId) == to_channel_id {
@@ -175,18 +179,18 @@ func (app *app) htlcInterceptDecision(ctx context.Context, event *routerrpc.Forw
 				}
 			} else {
 				// single entry
-				if parse_channelID(event.IncomingCircuitKey.ChanId) == forward_whitelist_entry {
+				if parse_channelID(event.IncomingCircuitKey.ChanId) == forward_allowlist_entry {
 					accept = true
 					break
 				}
 			}
 		}
-	case "blacklist":
+	case "denylist":
 		accept = true
-		for _, forward_whitelist_entry := range Configuration.ForwardWhitelist {
-			if len(strings.Split(forward_whitelist_entry, "->")) == 2 {
+		for _, forward_allowlist_entry := range Configuration.ForwardAllowlist {
+			if len(strings.Split(forward_allowlist_entry, "->")) == 2 {
 				// check if channel_id is actually from-to channel
-				split := strings.Split(forward_whitelist_entry, "->")
+				split := strings.Split(forward_allowlist_entry, "->")
 				from_channel_id, to_channel_id := split[0], split[1]
 				if parse_channelID(event.IncomingCircuitKey.ChanId) == from_channel_id &&
 					parse_channelID(event.OutgoingRequestedChanId) == to_channel_id {
@@ -195,7 +199,7 @@ func (app *app) htlcInterceptDecision(ctx context.Context, event *routerrpc.Forw
 				}
 			} else {
 				// single entry
-				if parse_channelID(event.IncomingCircuitKey.ChanId) == forward_whitelist_entry {
+				if parse_channelID(event.IncomingCircuitKey.ChanId) == forward_allowlist_entry {
 					accept = false
 					break
 				}
