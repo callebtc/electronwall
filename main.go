@@ -49,12 +49,12 @@ func getClientConnection(ctx context.Context) (*grpc.ClientConn, error) {
 		grpc.WithBlock(),
 		grpc.WithPerRPCCredentials(cred),
 	}
-	log.Infof("Connecting to LND...")
+	log.Infof("Connecting to %s", Configuration.Host)
 	conn, err := grpc.DialContext(ctx, Configuration.Host, opts...)
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("Connected to %s", Configuration.Host)
+
 	return conn, nil
 
 }
@@ -78,7 +78,12 @@ func main() {
 			log.Errorf("Could not get my pubkey: %s", err)
 			continue
 		}
-		log.Info("My pubkey: ", app.myPubkey)
+		myAlias, err := app.getNodeAlias(ctx, app.myPubkey)
+		if err == nil {
+			log.Infof("Connected to %s (%s)", myAlias, trimPubKey([]byte(app.myPubkey)))
+		} else {
+			log.Infof("Connected to %s", app.myPubkey)
+		}
 
 		var wg sync.WaitGroup
 		ctx = context.WithValue(ctx, ctxKeyWaitGroup, &wg)

@@ -139,10 +139,10 @@ func (app *app) interceptHtlcEvents(ctx context.Context, interceptor routerrpc.R
 				IncomingCircuitKey: event.IncomingCircuitKey,
 			}
 			if <-decision_chan {
-				log.Infof("[forward] ✅ Allow HTLC %s", Configuration.ForwardMode, forward_info_string)
+				log.Infof("[forward] ✅ Allow HTLC %s", forward_info_string)
 				response.Action = routerrpc.ResolveHoldForwardAction_RESUME
 			} else {
-				log.Infof("[forward] ❌ Deny HTLC %s", Configuration.ForwardMode, forward_info_string)
+				log.Infof("[forward] ❌ Deny HTLC %s", forward_info_string)
 				response.Action = routerrpc.ResolveHoldForwardAction_FAIL
 			}
 			err = interceptor.Send(response)
