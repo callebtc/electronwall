@@ -16,9 +16,9 @@ type lndclientMock struct {
 	htlcInterceptorRequests  chan *routerrpc.ForwardHtlcInterceptRequest
 	htlcInterceptorResponses chan *routerrpc.ForwardHtlcInterceptResponse
 
-	channelEvents           chan *lnrpc.ChannelEventUpdate
-	channelAcceptorRequests chan *lnrpc.ChannelAcceptRequest
-	channelAcceptorResponse chan *lnrpc.ChannelAcceptResponse
+	channelEvents            chan *lnrpc.ChannelEventUpdate
+	channelAcceptorRequests  chan *lnrpc.ChannelAcceptRequest
+	channelAcceptorResponses chan *lnrpc.ChannelAcceptResponse
 }
 
 func newLndclientMock() *lndclientMock {
@@ -27,7 +27,7 @@ func newLndclientMock() *lndclientMock {
 		htlcInterceptorRequests:  make(chan *routerrpc.ForwardHtlcInterceptRequest),
 		htlcInterceptorResponses: make(chan *routerrpc.ForwardHtlcInterceptResponse),
 		channelAcceptorRequests:  make(chan *lnrpc.ChannelAcceptRequest),
-		channelAcceptorResponse:  make(chan *lnrpc.ChannelAcceptResponse),
+		channelAcceptorResponses: make(chan *lnrpc.ChannelAcceptResponse),
 	}
 }
 
@@ -36,23 +36,28 @@ func newLndclientMock() *lndclientMock {
 type channelAcceptorMock struct {
 	lnrpc.Lightning_ChannelAcceptorClient
 
-	channelAcceptorRequests chan *lnrpc.ChannelAcceptRequest
-	channelAcceptorResponse chan *lnrpc.ChannelAcceptResponse
+	channelAcceptorRequests  chan *lnrpc.ChannelAcceptRequest
+	channelAcceptorResponses chan *lnrpc.ChannelAcceptResponse
 }
 
 func (lnd *lndclientMock) channelAcceptor(ctx context.Context) (
 	lnrpc.Lightning_ChannelAcceptorClient, error) {
 
 	return &channelAcceptorMock{
-		channelAcceptorRequests: lnd.channelAcceptorRequests,
-		channelAcceptorResponse: lnd.channelAcceptorResponse,
+		channelAcceptorRequests:  lnd.channelAcceptorRequests,
+		channelAcceptorResponses: lnd.channelAcceptorResponses,
 	}, nil
 
 }
 
 func (c *channelAcceptorMock) RecvMsg(m interface{}) error {
-	req := m.(*lnrpc.ChannelAcceptRequest)
-	c.channelAcceptorRequests <- req
+	req := <-c.channelAcceptorRequests
+	*m.(*lnrpc.ChannelAcceptRequest) = *req
+	return nil
+}
+
+func (c *channelAcceptorMock) Send(m *lnrpc.ChannelAcceptResponse) error {
+	c.channelAcceptorResponses <- m
 	return nil
 }
 
@@ -184,15 +189,20 @@ func TestApp(t *testing.T) {
 	cancel()
 }
 
-func TestHTLCFail(t *testing.T) {
+func TestHTLCDenylist(t *testing.T) {
 	client := newLndclientMock()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	app := NewApp(ctx, client)
 
+	Configuration.ForwardMode = "denylist"
+	Configuration.ForwardDenylist = []string{"700762x1327x1->690757x1005x1"}
+
 	app.DispatchHTLCAcceptor(ctx)
 	time.Sleep(1 * time.Second)
+
+	// should be denied
 
 	key := &routerrpc.CircuitKey{
 		ChanId: 770495967390531585,
@@ -212,17 +222,41 @@ func TestHTLCFail(t *testing.T) {
 		IncomingHtlcId:    key.HtlcId,
 		Event:             &routerrpc.HtlcEvent_SettleEvent{},
 	}
+
+	// should be allowed
+	key = &routerrpc.CircuitKey{
+		ChanId: 123456789876543210,
+		HtlcId: 1337,
+	}
+	client.htlcInterceptorRequests <- &routerrpc.ForwardHtlcInterceptRequest{
+		IncomingCircuitKey:      key,
+		OutgoingRequestedChanId: 9876543210123456543,
+	}
+
+	resp = <-client.htlcInterceptorResponses
+	require.Equal(t, routerrpc.ResolveHoldForwardAction_RESUME, resp.Action)
+
+	client.htlcEvents <- &routerrpc.HtlcEvent{
+		EventType:         routerrpc.HtlcEvent_FORWARD,
+		IncomingChannelId: key.ChanId,
+		IncomingHtlcId:    key.HtlcId,
+		Event:             &routerrpc.HtlcEvent_SettleEvent{},
+	}
 }
 
-func TestHTLCSuccess(t *testing.T) {
+func TestHTLCAllowlist(t *testing.T) {
 	client := newLndclientMock()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	app := NewApp(ctx, client)
 
+	Configuration.ForwardMode = "allowlist"
+	Configuration.ForwardAllowlist = []string{"700762x1327x1->690757x1005x1"}
 	app.DispatchHTLCAcceptor(ctx)
 	time.Sleep(1 * time.Second)
+
+	// should be allowed
 
 	key := &routerrpc.CircuitKey{
 		ChanId: 770495967390531585,
@@ -233,9 +267,6 @@ func TestHTLCSuccess(t *testing.T) {
 		OutgoingRequestedChanId: 759495353533530113,
 	}
 
-	Configuration.ForwardMode = "allowlist"
-	Configuration.ForwardAllowlist = []string{"700762x1327x1->690757x1005x1"}
-
 	resp := <-client.htlcInterceptorResponses
 	require.Equal(t, routerrpc.ResolveHoldForwardAction_RESUME, resp.Action)
 
@@ -245,4 +276,97 @@ func TestHTLCSuccess(t *testing.T) {
 		IncomingHtlcId:    key.HtlcId,
 		Event:             &routerrpc.HtlcEvent_SettleEvent{},
 	}
+
+	// should be denied
+
+	key = &routerrpc.CircuitKey{
+		ChanId: 123456789876543210,
+		HtlcId: 1337,
+	}
+	client.htlcInterceptorRequests <- &routerrpc.ForwardHtlcInterceptRequest{
+		IncomingCircuitKey:      key,
+		OutgoingRequestedChanId: 9876543210123456543,
+	}
+
+	resp = <-client.htlcInterceptorResponses
+	require.Equal(t, routerrpc.ResolveHoldForwardAction_FAIL, resp.Action)
+
+	client.htlcEvents <- &routerrpc.HtlcEvent{
+		EventType:         routerrpc.HtlcEvent_FORWARD,
+		IncomingChannelId: key.ChanId,
+		IncomingHtlcId:    key.HtlcId,
+		Event:             &routerrpc.HtlcEvent_SettleEvent{},
+	}
+}
+
+func TestChannelAllowlist(t *testing.T) {
+	client := newLndclientMock()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	app := NewApp(ctx, client)
+
+	Configuration.ChannelMode = "allowlist"
+	Configuration.ChannelAllowlist = []string{"6d792d7075626b65792d69732d766572792d6c6f6e672d666f722d7472696d6d696e672d7075626b6579"}
+
+	app.DispatchChannelAcceptor(ctx)
+	time.Sleep(1 * time.Second)
+
+	// should be allowed
+
+	client.channelAcceptorRequests <- &lnrpc.ChannelAcceptRequest{
+		NodePubkey:    []byte("my-pubkey-is-very-long-for-trimming-pubkey"),
+		FundingAmt:    1337,
+		PendingChanId: []byte("759495353533530113"),
+	}
+
+	resp := <-client.channelAcceptorResponses
+	require.Equal(t, resp.Accept, true)
+
+	// should be denied
+
+	client.channelAcceptorRequests <- &lnrpc.ChannelAcceptRequest{
+		NodePubkey:    []byte("WRONG PUBKEY"),
+		FundingAmt:    1337,
+		PendingChanId: []byte("759495353533530113"),
+	}
+
+	resp = <-client.channelAcceptorResponses
+	require.Equal(t, resp.Accept, false)
+}
+
+func TestChannelDenylist(t *testing.T) {
+	client := newLndclientMock()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	app := NewApp(ctx, client)
+
+	Configuration.ChannelMode = "denylist"
+	Configuration.ChannelDenylist = []string{"6d792d7075626b65792d69732d766572792d6c6f6e672d666f722d7472696d6d696e672d7075626b6579"}
+
+	app.DispatchChannelAcceptor(ctx)
+	time.Sleep(1 * time.Second)
+
+	// should be denied
+
+	client.channelAcceptorRequests <- &lnrpc.ChannelAcceptRequest{
+		NodePubkey:    []byte("my-pubkey-is-very-long-for-trimming-pubkey"),
+		FundingAmt:    1337,
+		PendingChanId: []byte("759495353533530113"),
+	}
+
+	resp := <-client.channelAcceptorResponses
+	require.Equal(t, resp.Accept, false)
+
+	// should be allowed
+
+	client.channelAcceptorRequests <- &lnrpc.ChannelAcceptRequest{
+		NodePubkey:    []byte("WRONG PUBKEY"),
+		FundingAmt:    1337,
+		PendingChanId: []byte("759495353533530113"),
+	}
+
+	resp = <-client.channelAcceptorResponses
+	require.Equal(t, resp.Accept, true)
 }
