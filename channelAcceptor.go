@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"sync"
@@ -13,21 +12,41 @@ import (
 
 // dispatchChannelAcceptor is the channel acceptor event loop
 func (app *app) dispatchChannelAcceptor(ctx context.Context) {
-	client := app.client
-	// wait group for channel acceptor
-	defer ctx.Value(ctxKeyWaitGroup).(*sync.WaitGroup).Done()
+	// the channel event logger
+	go func() {
+		err := app.logChannelEvents(ctx)
+		if err != nil {
+			log.Error("channel event logger error",
+				"err", err)
+		}
+	}()
+
+	// the channel event interceptor
+	go func() {
+		err := app.interceptChannelEvents(ctx)
+		if err != nil {
+			log.Error("channel interceptor error",
+				"err", err)
+		}
+		// release wait group for channel acceptor
+		ctx.Value(ctxKeyWaitGroup).(*sync.WaitGroup).Done()
+	}()
+
+	log.Infof("[channel] Listening for incoming channel requests")
+
+}
+
+func (app *app) interceptChannelEvents(ctx context.Context) error {
 	// get the lnd grpc connection
-	acceptClient, err := client.ChannelAcceptor(ctx)
+	acceptClient, err := app.client.ChannelAcceptor(ctx)
 	if err != nil {
 		panic(err)
 	}
-	log.Infof("[channel] Listening for incoming channel requests")
 	for {
 		req := lnrpc.ChannelAcceptRequest{}
 		err = acceptClient.RecvMsg(&req)
 		if err != nil {
-			log.Errorf(err.Error())
-			return
+			return err
 		}
 
 		// print the incoming channel request
@@ -43,31 +62,46 @@ func (app *app) dispatchChannelAcceptor(ctx context.Context) {
 		}
 		log.Debugf("[channel] New channel request from %s", node_info_string)
 
-		var accept bool
+		info, err := app.getNodeInfo(ctx, hex.EncodeToString(req.NodePubkey))
+		if err != nil {
+			log.Errorf(err.Error())
+		}
 
+		// determine mode and list of channels to parse
+		var accept bool
+		var listToParse []string
 		if Configuration.ChannelMode == "allowlist" {
 			accept = false
-			for _, pubkey := range Configuration.ChannelAllowlist {
-				if hex.EncodeToString(req.NodePubkey) == pubkey {
-					accept = true
-					break
-				}
-			}
+			listToParse = Configuration.ChannelAllowlist
 		} else if Configuration.ChannelMode == "denylist" {
 			accept = true
-			for _, pubkey := range Configuration.ChannelDenylist {
-				if hex.EncodeToString(req.NodePubkey) == pubkey {
-					accept = false
-					break
-				}
+			listToParse = Configuration.ChannelDenylist
+		}
+
+		// parse and make decision
+		for _, pubkey := range listToParse {
+			if hex.EncodeToString(req.NodePubkey) == pubkey {
+				accept = !accept
+				break
 			}
 		}
 
 		var channel_info_string string
 		if alias != "" {
-			channel_info_string = fmt.Sprintf("from %s (%s, %d sat, chan_id:%d)", alias, trimPubKey(req.NodePubkey), req.FundingAmt, binary.BigEndian.Uint64(req.PendingChanId))
+			channel_info_string = fmt.Sprintf("(%d sat) from %s (%s, %d sat capacity, %d channels)",
+				req.FundingAmt,
+				alias,
+				trimPubKey(req.NodePubkey),
+				info.TotalCapacity,
+				info.NumChannels,
+			)
 		} else {
-			channel_info_string = fmt.Sprintf("from %s (%d sat, chan_id:%d)", trimPubKey(req.NodePubkey), req.FundingAmt, binary.BigEndian.Uint64(req.PendingChanId))
+			channel_info_string = fmt.Sprintf("(%d sat) from %s (%d sat capacity, %d channels)",
+				req.FundingAmt,
+				trimPubKey(req.NodePubkey),
+				info.TotalCapacity,
+				info.NumChannels,
+			)
 		}
 
 		res := lnrpc.ChannelAcceptResponse{}
@@ -91,5 +125,33 @@ func (app *app) dispatchChannelAcceptor(ctx context.Context) {
 		if err != nil {
 			log.Errorf(err.Error())
 		}
+	}
+
+}
+
+func (app *app) logChannelEvents(ctx context.Context) error {
+	stream, err := app.client.SubscribeChannelEvents(ctx, &lnrpc.ChannelEventSubscription{})
+	if err != nil {
+		return err
+	}
+	for {
+		event, err := stream.Recv()
+		if err != nil {
+			return err
+		}
+		switch event.Type {
+		case lnrpc.ChannelEventUpdate_OPEN_CHANNEL:
+			alias, err := app.getNodeAlias(ctx, event.GetOpenChannel().RemotePubkey)
+			if err != nil {
+				log.Errorf(err.Error())
+				alias = trimPubKey([]byte(event.GetOpenChannel().RemotePubkey))
+			}
+			channel_info_string := fmt.Sprintf("(%d sat) from %s",
+				event.GetOpenChannel().Capacity,
+				alias,
+			)
+			log.Infof("[channel] Opened channel %s %s", parse_channelID(event.GetOpenChannel().ChanId), channel_info_string)
+		}
+		// log.Debugf("[channel] Event: %s", event.String())
 	}
 }

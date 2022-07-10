@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/lightningnetwork/lnd/lnrpc"
+	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
 	"github.com/lightningnetwork/lnd/macaroons"
 
 	log "github.com/sirupsen/logrus"
@@ -23,6 +24,8 @@ const (
 type app struct {
 	client   lnrpc.LightningClient
 	conn     *grpc.ClientConn
+	router   routerrpc.RouterClient
+	myInfo   *lnrpc.GetInfoResponse
 	myPubkey string
 }
 
@@ -73,13 +76,19 @@ func main() {
 			client: client,
 			conn:   conn,
 		}
-		app.myPubkey, err = app.getMyPubkey(ctx)
+
+		myInfo, err := app.getMyInfo(ctx)
 		if err != nil {
-			log.Errorf("Could not get my pubkey: %s", err)
+			log.Errorf("Could not get my node info: %s", err)
 			continue
+		} else {
+			app.myInfo = myInfo
+			app.myPubkey = myInfo.IdentityPubkey
+
 		}
-		myAlias, err := app.getNodeAlias(ctx, app.myPubkey)
-		if err == nil {
+
+		myAlias := app.myInfo.Alias
+		if len(myAlias) > 0 {
 			log.Infof("Connected to %s (%s)", myAlias, trimPubKey([]byte(app.myPubkey)))
 		} else {
 			log.Infof("Connected to %s", app.myPubkey)
@@ -90,10 +99,10 @@ func main() {
 		wg.Add(2)
 
 		// channel acceptor
-		go app.dispatchChannelAcceptor(ctx)
+		app.dispatchChannelAcceptor(ctx)
 
 		// htlc acceptor
-		go app.dispatchHTLCAcceptor(ctx)
+		app.dispatchHTLCAcceptor(ctx)
 
 		wg.Wait()
 		log.Info("All routines stopped. Waiting for new connection.")

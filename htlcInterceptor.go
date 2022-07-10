@@ -2,88 +2,46 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 
-	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
-	"github.com/lightningnetwork/lnd/routing/route"
 	log "github.com/sirupsen/logrus"
 )
 
 // dispatchHTLCAcceptor is the HTLC acceptor event loop
 func (app *app) dispatchHTLCAcceptor(ctx context.Context) {
-	// wait group for channel acceptor
-	defer ctx.Value(ctxKeyWaitGroup).(*sync.WaitGroup).Done()
-	conn := app.conn
-	router := routerrpc.NewRouterClient(conn)
-
-	// htlc event subscriber, reports on incoming htlc events
-	stream, err := router.SubscribeHtlcEvents(ctx, &routerrpc.SubscribeHtlcEventsRequest{})
-	if err != nil {
-		return
-	}
+	app.router = routerrpc.NewRouterClient(app.conn)
 
 	go func() {
-		err := app.logHtlcEvents(ctx, stream)
+		err := app.logHtlcEvents(ctx)
 		if err != nil {
-			log.Error("htlc events error",
+			log.Error("htlc event logger error",
 				"err", err)
 		}
 	}()
 
-	// interceptor, decide whether to accept or reject
-	interceptor, err := router.HtlcInterceptor(ctx)
-	if err != nil {
-		return
-	}
-
 	go func() {
-		err := app.interceptHtlcEvents(ctx, interceptor)
+		err := app.interceptHtlcEvents(ctx)
 		if err != nil {
-			log.Error("interceptor error",
+			log.Error("htlc interceptor error",
 				"err", err)
 		}
+		// release wait group for htlc interceptor
+		ctx.Value(ctxKeyWaitGroup).(*sync.WaitGroup).Done()
 	}()
 
 	log.Info("[forward] Listening for incoming HTLCs")
 }
 
-// logHtlcEvents reports on incoming htlc events
-func (app *app) logHtlcEvents(ctx context.Context, stream routerrpc.Router_SubscribeHtlcEventsClient) error {
-	for {
-		event, err := stream.Recv()
-		if err != nil {
-			return err
-		}
-
-		// we only care about HTLC forward events
-		if event.EventType != routerrpc.HtlcEvent_FORWARD {
-			continue
-		}
-
-		switch event.Event.(type) {
-		case *routerrpc.HtlcEvent_SettleEvent:
-			log.Debugf("[forward] ⚡️ HTLC SettleEvent (chan_id:%s, htlc_id:%d)", parse_channelID(event.IncomingChannelId), event.IncomingHtlcId)
-
-		case *routerrpc.HtlcEvent_ForwardFailEvent:
-			log.Debugf("[forward] HTLC ForwardFailEvent (chan_id:%s, htlc_id:%d)", parse_channelID(event.IncomingChannelId), event.IncomingHtlcId)
-
-		case *routerrpc.HtlcEvent_ForwardEvent:
-			log.Debugf("[forward] HTLC ForwardEvent (chan_id:%s, htlc_id:%d)", parse_channelID(event.IncomingChannelId), event.IncomingHtlcId)
-
-		case *routerrpc.HtlcEvent_LinkFailEvent:
-			log.Debugf("[forward] HTLC LinkFailEvent (chan_id:%s, htlc_id:%d)", parse_channelID(event.IncomingChannelId), event.IncomingHtlcId)
-		}
-
-	}
-}
-
 // interceptHtlcEvents intercepts incoming htlc events
-func (app *app) interceptHtlcEvents(ctx context.Context, interceptor routerrpc.Router_HtlcInterceptorClient) error {
+func (app *app) interceptHtlcEvents(ctx context.Context) error {
+	// interceptor, decide whether to accept or reject
+	interceptor, err := app.router.HtlcInterceptor(ctx)
+	if err != nil {
+		return err
+	}
 	for {
 		event, err := interceptor.Recv()
 		if err != nil {
@@ -162,119 +120,74 @@ func (app *app) interceptHtlcEvents(ctx context.Context, interceptor routerrpc.R
 // 3. If two channel IDs are used (7929856x65537x0->7143424x65537x0), check the incoming ID and the outgoing ID of the HTLC against the list.
 func (app *app) htlcInterceptDecision(ctx context.Context, event *routerrpc.ForwardHtlcInterceptRequest, decision_chan chan bool) {
 	var accept bool
+	var listToParse []string
+
+	// determine filtering mode and list to parse
 	switch Configuration.ForwardMode {
 	case "allowlist":
 		accept = false
-		for _, forward_allowlist_entry := range Configuration.ForwardAllowlist {
-			if len(strings.Split(forward_allowlist_entry, "->")) == 2 {
-				// check if channel_id is actually from-to channel
-				split := strings.Split(forward_allowlist_entry, "->")
-				from_channel_id, to_channel_id := split[0], split[1]
-				if parse_channelID(event.IncomingCircuitKey.ChanId) == from_channel_id &&
-					parse_channelID(event.OutgoingRequestedChanId) == to_channel_id {
-					accept = true
-					break
-				}
-			} else {
-				// single entry
-				if parse_channelID(event.IncomingCircuitKey.ChanId) == forward_allowlist_entry {
-					accept = true
-					break
-				}
-			}
-		}
+		listToParse = Configuration.ForwardAllowlist
 	case "denylist":
 		accept = true
-		for _, forward_allowlist_entry := range Configuration.ForwardAllowlist {
-			if len(strings.Split(forward_allowlist_entry, "->")) == 2 {
-				// check if channel_id is actually from-to channel
-				split := strings.Split(forward_allowlist_entry, "->")
-				from_channel_id, to_channel_id := split[0], split[1]
-				if parse_channelID(event.IncomingCircuitKey.ChanId) == from_channel_id &&
-					parse_channelID(event.OutgoingRequestedChanId) == to_channel_id {
-					accept = false
-					break
-				}
-			} else {
-				// single entry
-				if parse_channelID(event.IncomingCircuitKey.ChanId) == forward_allowlist_entry {
-					accept = false
-					break
-				}
-			}
-		}
+		listToParse = Configuration.ForwardDenylist
 	default:
 		err := fmt.Errorf("unknown forward mode: %s", Configuration.ForwardMode)
 		panic(err)
 	}
+
+	// parse list and decide
+	for _, forward_list_entry := range listToParse {
+		if len(strings.Split(forward_list_entry, "->")) == 2 {
+			// check if entry is a pair of from->to
+			split := strings.Split(forward_list_entry, "->")
+			from_channel_id, to_channel_id := split[0], split[1]
+			if parse_channelID(event.IncomingCircuitKey.ChanId) == from_channel_id &&
+				parse_channelID(event.OutgoingRequestedChanId) == to_channel_id {
+				accept = !accept
+				break
+			}
+		} else {
+			// single entry
+			if parse_channelID(event.IncomingCircuitKey.ChanId) == forward_list_entry {
+				accept = !accept
+				break
+			}
+		}
+	}
 	decision_chan <- accept
 }
 
-// Heavily inspired by by Joost Jager's circuitbreaker
-
-// getNodeAlias returns the alias of a node pubkey
-func (app *app) getNodeAlias(ctx context.Context, pubkey string) (string, error) {
-	client := app.client
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
-	info, err := client.GetNodeInfo(ctx, &lnrpc.NodeInfoRequest{
-		PubKey: pubkey,
-	})
+// logHtlcEvents reports on incoming htlc events
+func (app *app) logHtlcEvents(ctx context.Context) error {
+	// htlc event subscriber, reports on incoming htlc events
+	stream, err := app.router.SubscribeHtlcEvents(ctx, &routerrpc.SubscribeHtlcEventsRequest{})
 	if err != nil {
-		return "", err
+		return err
 	}
+	for {
+		event, err := stream.Recv()
+		if err != nil {
+			return err
+		}
 
-	if info.Node == nil {
-		return "", errors.New("node info not available")
+		// we only care about HTLC forward events
+		if event.EventType != routerrpc.HtlcEvent_FORWARD {
+			continue
+		}
+
+		switch event.Event.(type) {
+		case *routerrpc.HtlcEvent_SettleEvent:
+			log.Debugf("[forward] ⚡️ HTLC SettleEvent (chan_id:%s, htlc_id:%d)", parse_channelID(event.IncomingChannelId), event.IncomingHtlcId)
+
+		case *routerrpc.HtlcEvent_ForwardFailEvent:
+			log.Debugf("[forward] HTLC ForwardFailEvent (chan_id:%s, htlc_id:%d)", parse_channelID(event.IncomingChannelId), event.IncomingHtlcId)
+
+		case *routerrpc.HtlcEvent_ForwardEvent:
+			log.Debugf("[forward] HTLC ForwardEvent (chan_id:%s, htlc_id:%d)", parse_channelID(event.IncomingChannelId), event.IncomingHtlcId)
+
+		case *routerrpc.HtlcEvent_LinkFailEvent:
+			log.Debugf("[forward] HTLC LinkFailEvent (chan_id:%s, htlc_id:%d)", parse_channelID(event.IncomingChannelId), event.IncomingHtlcId)
+		}
+
 	}
-
-	return info.Node.Alias, nil
-}
-
-// getMyPubkey returns the pubkey of my own node
-func (app *app) getMyPubkey(ctx context.Context) (string, error) {
-	client := app.client
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
-	info, err := client.GetInfo(ctx, &lnrpc.GetInfoRequest{})
-	if err != nil {
-		return "", err
-	}
-
-	return info.IdentityPubkey, nil
-}
-
-type channelEdge struct {
-	node1Pub, node2Pub route.Vertex
-}
-
-// getPubKeyFromChannel returns the pubkey of the remote node in a channel
-func (app *app) getPubKeyFromChannel(ctx context.Context, chan_id uint64) (*channelEdge, error) {
-	client := app.client
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
-	info, err := client.GetChanInfo(ctx, &lnrpc.ChanInfoRequest{
-		ChanId: chan_id,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	node1Pub, err := route.NewVertexFromStr(info.Node1Pub)
-	if err != nil {
-		return nil, err
-	}
-
-	node2Pub, err := route.NewVertexFromStr(info.Node2Pub)
-	if err != nil {
-		return nil, err
-	}
-
-	return &channelEdge{
-		node1Pub: node1Pub,
-		node2Pub: node2Pub,
-	}, nil
 }
