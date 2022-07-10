@@ -14,9 +14,9 @@ jobs:
         go-version: 1.18
 
     - name: Build
-      run: |
-        cp config.yaml.example config.yaml
-        go build -v .
+      run: go build -v .
 
     - name: Test
-      run: go test -v .
+      run: |
+        cp config.yaml.example config.yaml
+        go test -v .
