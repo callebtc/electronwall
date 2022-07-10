@@ -66,6 +66,8 @@ func (app *App) interceptHtlcEvents(ctx context.Context) error {
 				aliasFrom = trimPubKey([]byte(pubkeyFrom))
 				log.Errorf("[forward] Error getting alias for node %s", aliasFrom)
 			}
+
+			// we need to figure out which side of the channel is the other end
 			channelEdgeTo, err := app.lnd.getPubKeyFromChannel(ctx, event.OutgoingRequestedChanId)
 			if err != nil {
 				log.Errorf("[forward] Error getting pubkey for channel %s", parse_channelID(event.OutgoingRequestedChanId))
@@ -81,6 +83,7 @@ func (app *App) interceptHtlcEvents(ctx context.Context) error {
 				log.Errorf("[forward] Error getting alias for node %s", aliasTo)
 			}
 
+			log.Debugf("[forward] HTLC event (%d->%d)", event.IncomingCircuitKey.ChanId, event.OutgoingRequestedChanId)
 			forward_info_string := fmt.Sprintf(
 				"from %s to %s (%d sat, chan_id:%s->%s, htlc_id:%d)",
 				aliasFrom,
@@ -135,13 +138,18 @@ func (app *App) htlcInterceptDecision(ctx context.Context, event *routerrpc.Forw
 
 	// parse list and decide
 	for _, forward_list_entry := range listToParse {
+		if forward_list_entry == "*" {
+			accept = !accept
+			break
+		}
 		if len(strings.Split(forward_list_entry, "->")) == 2 {
 			// check if entry is a pair of from->to
 			split := strings.Split(forward_list_entry, "->")
 			from_channel_id, to_channel_id := split[0], split[1]
-			if parse_channelID(event.IncomingCircuitKey.ChanId) == from_channel_id &&
-				parse_channelID(event.OutgoingRequestedChanId) == to_channel_id {
+			if (parse_channelID(event.IncomingCircuitKey.ChanId) == from_channel_id || from_channel_id == "*") &&
+				(parse_channelID(event.OutgoingRequestedChanId) == to_channel_id || to_channel_id == "*") {
 				accept = !accept
+				log.Tracef("[test] Incoming: %s <-> %s, Outgoing: %s <-> %s", parse_channelID(event.IncomingCircuitKey.ChanId), from_channel_id, parse_channelID(event.OutgoingRequestedChanId), to_channel_id)
 				break
 			}
 		} else {
