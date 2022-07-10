@@ -80,7 +80,7 @@ func (app *App) interceptChannelEvents(ctx context.Context) error {
 
 		// parse and make decision
 		for _, pubkey := range listToParse {
-			if hex.EncodeToString(req.NodePubkey) == pubkey {
+			if hex.EncodeToString(req.NodePubkey) == pubkey || pubkey == "*" {
 				accept = !accept
 				break
 			}

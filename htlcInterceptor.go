@@ -135,6 +135,10 @@ func (app *App) htlcInterceptDecision(ctx context.Context, event *routerrpc.Forw
 
 	// parse list and decide
 	for _, forward_list_entry := range listToParse {
+		if forward_list_entry == "*" {
+			accept = !accept
+			break
+		}
 		if len(strings.Split(forward_list_entry, "->")) == 2 {
 			// check if entry is a pair of from->to
 			split := strings.Split(forward_list_entry, "->")
