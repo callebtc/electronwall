@@ -11,27 +11,31 @@ debug: true
 # ----- Channel openings -----
 
 # Mode can either be "denylist" or "allowlist"
+# Only one mode can be used at a time, the other list is ignored.
 channel-mode: "denylist" 
 
 # This error message will be sent to the other party upon a reject
 channel-reject-message: "Contact me at user@email.com"
 
-# List of nodes to allowlist or denylist
+# List of public keys
 channel-allowlist:
   - "03de70865239e99460041e127647b37101b9eb335b3c22de95c944671f0dabc2d0"
   - "0307299a290529c5ccb3a5e3bd2eb504daf64cc65c6d65b582c01cbd7e5ede14b6"
+  - "*" # all public keys
 channel-denylist:
   - "02853f9c1d15d479b433039885373b681683b84bb73e86dff861bee6697c17c1de"
 
 # ----- HTLC forwarding -----
 
 # Mode can either be "denylist" or "allowlist"
+# Only one mode can be used at a time, the other list is ignored.
 forward-mode: "denylist"
 
 # List of channel IDs to allowlist or denylist
 forward-allowlist:
-  - "7143424x65537x0"
-  - "12320768x65536x0->7143424x65537x0"
+  - "7143424x65537x0"                   # all forwards from this channel
+  - "7143424x65537x0->*"                # same as above
+  - "6629856x65537x0->7143424x65537x0"  # channel pair
+  - "*->25328x256x0"                    # all forwards to this channel
 forward-denylist:
-  - "12320768x65536x0"  
-  - "7929856x65537x1->12320768x65536x0"
+  - "9961472x65537x1"
