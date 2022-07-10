@@ -83,7 +83,7 @@ func (app *App) interceptHtlcEvents(ctx context.Context) error {
 				log.Errorf("[forward] Error getting alias for node %s", aliasTo)
 			}
 
-			log.Debugf("[forward] HTLC event (%d->%d)", event.IncomingCircuitKey.ChanId, event.OutgoingRequestedChanId)
+			log.Tracef("[forward] HTLC event (%d->%d)", event.IncomingCircuitKey.ChanId, event.OutgoingRequestedChanId)
 			forward_info_string := fmt.Sprintf(
 				"from %s to %s (%d sat, chan_id:%s->%s, htlc_id:%d)",
 				aliasFrom,
