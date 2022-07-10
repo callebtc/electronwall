@@ -21,12 +21,20 @@ const (
 	ctxKeyWaitGroup key = iota
 )
 
-type app struct {
-	client   lnrpc.LightningClient
-	conn     *grpc.ClientConn
-	router   routerrpc.RouterClient
-	myInfo   *lnrpc.GetInfoResponse
-	myPubkey string
+type App struct {
+	lnd    lndclient
+	myInfo *lnrpc.GetInfoResponse
+}
+
+func NewApp(ctx context.Context, lnd lndclient) *App {
+	myInfo, err := lnd.getMyInfo(ctx)
+	if err != nil {
+		log.Errorf("Could not get my node info: %s", err)
+	}
+	return &App{
+		lnd:    lnd,
+		myInfo: myInfo,
+	}
 }
 
 // gets the lnd grpc connection
@@ -57,41 +65,39 @@ func getClientConnection(ctx context.Context) (*grpc.ClientConn, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return conn, nil
+}
 
+func newLndClient(ctx context.Context) (*LndClient, error) {
+	conn, err := getClientConnection(ctx)
+	if err != nil {
+		log.Errorf("Connection failed: %s", err)
+		return &LndClient{}, err
+	}
+	client := lnrpc.NewLightningClient(conn)
+	router := routerrpc.NewRouterClient(conn)
+	return &LndClient{
+		client: client,
+		conn:   conn,
+		router: router,
+	}, nil
 }
 
 func main() {
 	ctx := context.Background()
 	for {
-		conn, err := getClientConnection(ctx)
+		lnd, err := newLndClient(ctx)
 		if err != nil {
-			log.Errorf("Could not connect to lnd: %s", err)
+			log.Errorf("Failed to create lnd client: %s", err)
 			return
 		}
-		client := lnrpc.NewLightningClient(conn)
 
-		app := app{
-			client: client,
-			conn:   conn,
-		}
+		app := NewApp(ctx, lnd)
 
-		myInfo, err := app.getMyInfo(ctx)
-		if err != nil {
-			log.Errorf("Could not get my node info: %s", err)
-			continue
+		if len(app.myInfo.Alias) > 0 {
+			log.Infof("Connected to %s (%s)", app.myInfo.Alias, trimPubKey([]byte(app.myInfo.IdentityPubkey)))
 		} else {
-			app.myInfo = myInfo
-			app.myPubkey = myInfo.IdentityPubkey
-
-		}
-
-		myAlias := app.myInfo.Alias
-		if len(myAlias) > 0 {
-			log.Infof("Connected to %s (%s)", myAlias, trimPubKey([]byte(app.myPubkey)))
-		} else {
-			log.Infof("Connected to %s", app.myPubkey)
+			log.Infof("Connected to %s", app.myInfo.IdentityPubkey)
 		}
 
 		var wg sync.WaitGroup
@@ -99,10 +105,10 @@ func main() {
 		wg.Add(2)
 
 		// channel acceptor
-		app.dispatchChannelAcceptor(ctx)
+		app.DispatchChannelAcceptor(ctx)
 
 		// htlc acceptor
-		app.dispatchHTLCAcceptor(ctx)
+		app.DispatchHTLCAcceptor(ctx)
 
 		wg.Wait()
 		log.Info("All routines stopped. Waiting for new connection.")

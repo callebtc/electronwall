@@ -10,10 +10,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// dispatchHTLCAcceptor is the HTLC acceptor event loop
-func (app *app) dispatchHTLCAcceptor(ctx context.Context) {
-	app.router = routerrpc.NewRouterClient(app.conn)
-
+// DispatchHTLCAcceptor is the HTLC acceptor event loop
+func (app *App) DispatchHTLCAcceptor(ctx context.Context) {
 	go func() {
 		err := app.logHtlcEvents(ctx)
 		if err != nil {
@@ -36,9 +34,9 @@ func (app *app) dispatchHTLCAcceptor(ctx context.Context) {
 }
 
 // interceptHtlcEvents intercepts incoming htlc events
-func (app *app) interceptHtlcEvents(ctx context.Context) error {
+func (app *App) interceptHtlcEvents(ctx context.Context) error {
 	// interceptor, decide whether to accept or reject
-	interceptor, err := app.router.HtlcInterceptor(ctx)
+	interceptor, err := app.lnd.htlcInterceptor(ctx)
 	if err != nil {
 		return err
 	}
@@ -52,35 +50,35 @@ func (app *app) interceptHtlcEvents(ctx context.Context) error {
 			decision_chan := make(chan bool, 1)
 			go app.htlcInterceptDecision(ctx, event, decision_chan)
 
-			channelEdge, err := app.getPubKeyFromChannel(ctx, event.IncomingCircuitKey.ChanId)
+			channelEdge, err := app.lnd.getPubKeyFromChannel(ctx, event.IncomingCircuitKey.ChanId)
 			if err != nil {
-				log.Error("[forward] Error getting pubkey for channel %s", parse_channelID(event.IncomingCircuitKey.ChanId))
+				log.Errorf("[forward] Error getting pubkey for channel %s", parse_channelID(event.IncomingCircuitKey.ChanId))
 			}
 
 			var pubkeyFrom, aliasFrom, pubkeyTo, aliasTo string
-			if channelEdge.node1Pub.String() != app.myPubkey {
-				pubkeyFrom = channelEdge.node1Pub.String()
+			if channelEdge.Node1Pub != app.myInfo.IdentityPubkey {
+				pubkeyFrom = channelEdge.Node1Pub
 			} else {
-				pubkeyFrom = channelEdge.node2Pub.String()
+				pubkeyFrom = channelEdge.Node2Pub
 			}
-			aliasFrom, err = app.getNodeAlias(ctx, pubkeyFrom)
+			aliasFrom, err = app.lnd.getNodeAlias(ctx, pubkeyFrom)
 			if err != nil {
 				aliasFrom = trimPubKey([]byte(pubkeyFrom))
-				log.Error("[forward] Error getting alias for node %s", aliasFrom)
+				log.Errorf("[forward] Error getting alias for node %s", aliasFrom)
 			}
-			channelEdgeTo, err := app.getPubKeyFromChannel(ctx, event.OutgoingRequestedChanId)
+			channelEdgeTo, err := app.lnd.getPubKeyFromChannel(ctx, event.OutgoingRequestedChanId)
 			if err != nil {
-				log.Error("[forward] Error getting pubkey for channel %s", parse_channelID(event.OutgoingRequestedChanId))
+				log.Errorf("[forward] Error getting pubkey for channel %s", parse_channelID(event.OutgoingRequestedChanId))
 			}
-			if channelEdgeTo.node1Pub.String() != app.myPubkey {
-				pubkeyTo = channelEdgeTo.node1Pub.String()
+			if channelEdgeTo.Node1Pub != app.myInfo.IdentityPubkey {
+				pubkeyTo = channelEdgeTo.Node1Pub
 			} else {
-				pubkeyTo = channelEdgeTo.node2Pub.String()
+				pubkeyTo = channelEdgeTo.Node2Pub
 			}
-			aliasTo, err = app.getNodeAlias(ctx, pubkeyTo)
+			aliasTo, err = app.lnd.getNodeAlias(ctx, pubkeyTo)
 			if err != nil {
 				aliasTo = trimPubKey([]byte(pubkeyTo))
-				log.Error("[forward] Error getting alias for node %s", aliasTo)
+				log.Errorf("[forward] Error getting alias for node %s", aliasTo)
 			}
 
 			forward_info_string := fmt.Sprintf(
@@ -118,7 +116,7 @@ func (app *app) interceptHtlcEvents(ctx context.Context) error {
 // 1. Either use a allowlist or a denylist.
 // 2. If a single channel ID is used (12320768x65536x0), check the incoming ID of the HTLC against the list.
 // 3. If two channel IDs are used (7929856x65537x0->7143424x65537x0), check the incoming ID and the outgoing ID of the HTLC against the list.
-func (app *app) htlcInterceptDecision(ctx context.Context, event *routerrpc.ForwardHtlcInterceptRequest, decision_chan chan bool) {
+func (app *App) htlcInterceptDecision(ctx context.Context, event *routerrpc.ForwardHtlcInterceptRequest, decision_chan chan bool) {
 	var accept bool
 	var listToParse []string
 
@@ -158,9 +156,9 @@ func (app *app) htlcInterceptDecision(ctx context.Context, event *routerrpc.Forw
 }
 
 // logHtlcEvents reports on incoming htlc events
-func (app *app) logHtlcEvents(ctx context.Context) error {
+func (app *App) logHtlcEvents(ctx context.Context) error {
 	// htlc event subscriber, reports on incoming htlc events
-	stream, err := app.router.SubscribeHtlcEvents(ctx, &routerrpc.SubscribeHtlcEventsRequest{})
+	stream, err := app.lnd.subscribeHtlcEvents(ctx, &routerrpc.SubscribeHtlcEventsRequest{})
 	if err != nil {
 		return err
 	}

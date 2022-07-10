@@ -10,8 +10,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// dispatchChannelAcceptor is the channel acceptor event loop
-func (app *app) dispatchChannelAcceptor(ctx context.Context) {
+// DispatchChannelAcceptor is the channel acceptor event loop
+func (app *App) DispatchChannelAcceptor(ctx context.Context) {
 	// the channel event logger
 	go func() {
 		err := app.logChannelEvents(ctx)
@@ -36,9 +36,9 @@ func (app *app) dispatchChannelAcceptor(ctx context.Context) {
 
 }
 
-func (app *app) interceptChannelEvents(ctx context.Context) error {
+func (app *App) interceptChannelEvents(ctx context.Context) error {
 	// get the lnd grpc connection
-	acceptClient, err := app.client.ChannelAcceptor(ctx)
+	acceptClient, err := app.lnd.channelAcceptor(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -50,7 +50,7 @@ func (app *app) interceptChannelEvents(ctx context.Context) error {
 		}
 
 		// print the incoming channel request
-		alias, err := app.getNodeAlias(ctx, hex.EncodeToString(req.NodePubkey))
+		alias, err := app.lnd.getNodeAlias(ctx, hex.EncodeToString(req.NodePubkey))
 		if err != nil {
 			log.Errorf(err.Error())
 		}
@@ -62,7 +62,7 @@ func (app *app) interceptChannelEvents(ctx context.Context) error {
 		}
 		log.Debugf("[channel] New channel request from %s", node_info_string)
 
-		info, err := app.getNodeInfo(ctx, hex.EncodeToString(req.NodePubkey))
+		info, err := app.lnd.getNodeInfo(ctx, hex.EncodeToString(req.NodePubkey))
 		if err != nil {
 			log.Errorf(err.Error())
 		}
@@ -129,8 +129,8 @@ func (app *app) interceptChannelEvents(ctx context.Context) error {
 
 }
 
-func (app *app) logChannelEvents(ctx context.Context) error {
-	stream, err := app.client.SubscribeChannelEvents(ctx, &lnrpc.ChannelEventSubscription{})
+func (app *App) logChannelEvents(ctx context.Context) error {
+	stream, err := app.lnd.subscribeChannelEvents(ctx, &lnrpc.ChannelEventSubscription{})
 	if err != nil {
 		return err
 	}
@@ -141,7 +141,7 @@ func (app *app) logChannelEvents(ctx context.Context) error {
 		}
 		switch event.Type {
 		case lnrpc.ChannelEventUpdate_OPEN_CHANNEL:
-			alias, err := app.getNodeAlias(ctx, event.GetOpenChannel().RemotePubkey)
+			alias, err := app.lnd.getNodeAlias(ctx, event.GetOpenChannel().RemotePubkey)
 			if err != nil {
 				log.Errorf(err.Error())
 				alias = trimPubKey([]byte(event.GetOpenChannel().RemotePubkey))
@@ -152,6 +152,6 @@ func (app *app) logChannelEvents(ctx context.Context) error {
 			)
 			log.Infof("[channel] Opened channel %s %s", parse_channelID(event.GetOpenChannel().ChanId), channel_info_string)
 		}
-		// log.Debugf("[channel] Event: %s", event.String())
+		log.Tracef("[channel] Event: %s", event.String())
 	}
 }
