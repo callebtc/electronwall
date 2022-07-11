@@ -150,7 +150,7 @@ func (app *App) logChannelEvents(ctx context.Context) error {
 				event.GetOpenChannel().Capacity,
 				alias,
 			)
-			log.Infof("[channel] Opened channel %s %s", parse_channelID(event.GetOpenChannel().ChanId), channel_info_string)
+			log.Infof("[channel] Opened channel %s %s", ParseChannelID(event.GetOpenChannel().ChanId), channel_info_string)
 		}
 		log.Tracef("[channel] Event: %s", event.String())
 	}

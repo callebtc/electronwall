@@ -44,9 +44,12 @@ func intToHex(i int64) string {
 	return hex.EncodeToString(big.NewInt(i).Bytes())
 }
 
-func parse_channelID(e uint64) string {
+func ParseChannelID(e uint64) string {
 	byte_e := big.NewInt(int64(e)).Bytes()
 	hexstr := hex.EncodeToString(byte_e)
+	if len(hexstr) < 12 {
+		return ""
+	}
 	int_block3, _ := strconv.ParseInt(hexstr[:6], 16, 64)
 	int_block2, _ := strconv.ParseInt(hexstr[6:12], 16, 64)
 	int_block1, _ := strconv.ParseInt(hexstr[12:], 16, 64)

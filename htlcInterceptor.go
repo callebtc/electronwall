@@ -52,7 +52,7 @@ func (app *App) interceptHtlcEvents(ctx context.Context) error {
 
 			channelEdge, err := app.lnd.getPubKeyFromChannel(ctx, event.IncomingCircuitKey.ChanId)
 			if err != nil {
-				log.Errorf("[forward] Error getting pubkey for channel %s", parse_channelID(event.IncomingCircuitKey.ChanId))
+				log.Errorf("[forward] Error getting pubkey for channel %s", ParseChannelID(event.IncomingCircuitKey.ChanId))
 			}
 
 			var pubkeyFrom, aliasFrom, pubkeyTo, aliasTo string
@@ -70,7 +70,7 @@ func (app *App) interceptHtlcEvents(ctx context.Context) error {
 			// we need to figure out which side of the channel is the other end
 			channelEdgeTo, err := app.lnd.getPubKeyFromChannel(ctx, event.OutgoingRequestedChanId)
 			if err != nil {
-				log.Errorf("[forward] Error getting pubkey for channel %s", parse_channelID(event.OutgoingRequestedChanId))
+				log.Errorf("[forward] Error getting pubkey for channel %s", ParseChannelID(event.OutgoingRequestedChanId))
 			}
 			if channelEdgeTo.Node1Pub != app.myInfo.IdentityPubkey {
 				pubkeyTo = channelEdgeTo.Node1Pub
@@ -89,8 +89,8 @@ func (app *App) interceptHtlcEvents(ctx context.Context) error {
 				aliasFrom,
 				aliasTo,
 				event.IncomingAmountMsat/1000,
-				parse_channelID(event.IncomingCircuitKey.ChanId),
-				parse_channelID(event.OutgoingRequestedChanId),
+				ParseChannelID(event.IncomingCircuitKey.ChanId),
+				ParseChannelID(event.OutgoingRequestedChanId),
 				event.IncomingCircuitKey.HtlcId,
 			)
 
@@ -146,15 +146,15 @@ func (app *App) htlcInterceptDecision(ctx context.Context, event *routerrpc.Forw
 			// check if entry is a pair of from->to
 			split := strings.Split(forward_list_entry, "->")
 			from_channel_id, to_channel_id := split[0], split[1]
-			if (parse_channelID(event.IncomingCircuitKey.ChanId) == from_channel_id || from_channel_id == "*") &&
-				(parse_channelID(event.OutgoingRequestedChanId) == to_channel_id || to_channel_id == "*") {
+			if (ParseChannelID(event.IncomingCircuitKey.ChanId) == from_channel_id || from_channel_id == "*") &&
+				(ParseChannelID(event.OutgoingRequestedChanId) == to_channel_id || to_channel_id == "*") {
 				accept = !accept
-				log.Tracef("[test] Incoming: %s <-> %s, Outgoing: %s <-> %s", parse_channelID(event.IncomingCircuitKey.ChanId), from_channel_id, parse_channelID(event.OutgoingRequestedChanId), to_channel_id)
+				log.Tracef("[test] Incoming: %s <-> %s, Outgoing: %s <-> %s", ParseChannelID(event.IncomingCircuitKey.ChanId), from_channel_id, ParseChannelID(event.OutgoingRequestedChanId), to_channel_id)
 				break
 			}
 		} else {
 			// single entry
-			if parse_channelID(event.IncomingCircuitKey.ChanId) == forward_list_entry {
+			if ParseChannelID(event.IncomingCircuitKey.ChanId) == forward_list_entry {
 				accept = !accept
 				break
 			}
@@ -183,16 +183,16 @@ func (app *App) logHtlcEvents(ctx context.Context) error {
 
 		switch event.Event.(type) {
 		case *routerrpc.HtlcEvent_SettleEvent:
-			log.Debugf("[forward] ⚡️ HTLC SettleEvent (chan_id:%s, htlc_id:%d)", parse_channelID(event.IncomingChannelId), event.IncomingHtlcId)
+			log.Debugf("[forward] ⚡️ HTLC SettleEvent (chan_id:%s, htlc_id:%d)", ParseChannelID(event.IncomingChannelId), event.IncomingHtlcId)
 
 		case *routerrpc.HtlcEvent_ForwardFailEvent:
-			log.Debugf("[forward] HTLC ForwardFailEvent (chan_id:%s, htlc_id:%d)", parse_channelID(event.IncomingChannelId), event.IncomingHtlcId)
+			log.Debugf("[forward] HTLC ForwardFailEvent (chan_id:%s, htlc_id:%d)", ParseChannelID(event.IncomingChannelId), event.IncomingHtlcId)
 
 		case *routerrpc.HtlcEvent_ForwardEvent:
-			log.Debugf("[forward] HTLC ForwardEvent (chan_id:%s, htlc_id:%d)", parse_channelID(event.IncomingChannelId), event.IncomingHtlcId)
+			log.Debugf("[forward] HTLC ForwardEvent (chan_id:%s, htlc_id:%d)", ParseChannelID(event.IncomingChannelId), event.IncomingHtlcId)
 
 		case *routerrpc.HtlcEvent_LinkFailEvent:
-			log.Debugf("[forward] HTLC LinkFailEvent (chan_id:%s, htlc_id:%d)", parse_channelID(event.IncomingChannelId), event.IncomingHtlcId)
+			log.Debugf("[forward] HTLC LinkFailEvent (chan_id:%s, htlc_id:%d)", ParseChannelID(event.IncomingChannelId), event.IncomingHtlcId)
 		}
 
 	}
