@@ -27,7 +27,10 @@ func welcome() {
 // setLogger will initialize the log format
 func setLogger(debug bool, json bool) {
 	if json {
-		log.SetFormatter(&log.JSONFormatter{})
+		customFormatter := new(log.JSONFormatter)
+		customFormatter.TimestampFormat = "2006-01-02 15:04:05"
+		customFormatter.PrettyPrint = true
+		log.SetFormatter(customFormatter)
 		return
 	}
 
