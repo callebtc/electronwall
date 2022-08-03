@@ -104,9 +104,19 @@ func (app *App) interceptChannelEvents(ctx context.Context) error {
 			)
 		}
 
+		contextLogger := log.WithFields(log.Fields{
+			"event":           "channel_request",
+			"amount":          req.FundingAmt,
+			"alias":           alias,
+			"pubkey":          hex.EncodeToString(req.NodePubkey),
+			"pending_chan_id": hex.EncodeToString(req.PendingChanId),
+			"total_capacity":  info.TotalCapacity,
+			"num_channels":    info.NumChannels,
+		})
+
 		res := lnrpc.ChannelAcceptResponse{}
 		if accept {
-			log.Infof("[channel] ✅ Allow channel %s", channel_info_string)
+			contextLogger.Infof("[channel] ✅ Allow channel %s", channel_info_string)
 			res = lnrpc.ChannelAcceptResponse{Accept: true,
 				PendingChanId:   req.PendingChanId,
 				CsvDelay:        req.CsvDelay,
@@ -117,7 +127,7 @@ func (app *App) interceptChannelEvents(ctx context.Context) error {
 			}
 
 		} else {
-			log.Infof("[channel] ❌ Deny channel %s", channel_info_string)
+			contextLogger.Infof("[channel] ❌ Deny channel %s", channel_info_string)
 			res = lnrpc.ChannelAcceptResponse{Accept: false,
 				Error: Configuration.ChannelRejectMessage}
 		}
@@ -150,7 +160,14 @@ func (app *App) logChannelEvents(ctx context.Context) error {
 				event.GetOpenChannel().Capacity,
 				alias,
 			)
-			log.Infof("[channel] Opened channel %s %s", ParseChannelID(event.GetOpenChannel().ChanId), channel_info_string)
+			contextLogger := log.WithFields(log.Fields{
+				"event":    "channel_open",
+				"capacity": event.GetOpenChannel().Capacity,
+				"alias":    alias,
+				"pubkey":   event.GetOpenChannel().RemotePubkey,
+				"chan_id":  ParseChannelID(event.GetOpenChannel().ChanId),
+			})
+			contextLogger.Infof("[channel] Opened channel %s %s", ParseChannelID(event.GetOpenChannel().ChanId), channel_info_string)
 		}
 		log.Tracef("[channel] Event: %s", event.String())
 	}

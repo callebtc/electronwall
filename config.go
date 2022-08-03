@@ -13,6 +13,7 @@ var Configuration = struct {
 	MacaroonPath         string   `yaml:"macaroon_path"`
 	TLSPath              string   `yaml:"tls-path"`
 	Debug                bool     `yaml:"debug"`
+	LogMode              string   `yaml:"log-mode"`
 	ChannelAllowlist     []string `yaml:"channel-allowlist"`
 	ChannelDenylist      []string `yaml:"channel-denylist"`
 	ChannelRejectMessage string   `yaml:"channel-reject-message"`
@@ -30,7 +31,7 @@ func init() {
 }
 
 func checkConfig() {
-	setLogger(Configuration.Debug)
+	setLogger(Configuration.Debug, Configuration.LogMode == "json")
 	welcome()
 
 	if Configuration.Host == "" {

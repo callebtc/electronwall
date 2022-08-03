@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"os"
 	"strconv"
 
 	log "github.com/sirupsen/logrus"
@@ -20,11 +21,17 @@ func trimPubKey(pubkey []byte) string {
 }
 
 func welcome() {
-	log.Info("---- ⚡️ electronwall 0.3.2 ⚡️ ----")
+	log.Info("---- ⚡️ electronwall 0.3.3 ⚡️ ----")
 }
 
 // setLogger will initialize the log format
-func setLogger(debug bool) {
+func setLogger(debug bool, json bool) {
+	if json {
+		log.SetFormatter(&log.JSONFormatter{})
+		return
+	}
+
+	log.SetOutput(os.Stdout)
 	if debug {
 		log.SetLevel(log.DebugLevel)
 	} else {
@@ -33,6 +40,8 @@ func setLogger(debug bool) {
 	customFormatter := new(log.TextFormatter)
 	customFormatter.TimestampFormat = "2006-01-02 15:04:05"
 	customFormatter.FullTimestamp = true
+	customFormatter.ForceColors = true
+
 	log.SetFormatter(customFormatter)
 }
 
@@ -55,76 +64,3 @@ func ParseChannelID(e uint64) string {
 	int_block1, _ := strconv.ParseInt(hexstr[12:], 16, 64)
 	return fmt.Sprintf("%dx%dx%d", int_block3, int_block2, int_block1)
 }
-
-// These functions are inspired by by Joost Jager's circuitbreaker
-
-// // getNodeInfo returns the information of a node given a pubKey
-// func (app *App) getNodeInfo(ctx context.Context, pubkey string) (nodeInfo *lnrpc.NodeInfo, err error) {
-// 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-// 	defer cancel()
-
-// 	info, err := app.client.GetNodeInfo(ctx, &lnrpc.NodeInfoRequest{
-// 		PubKey: pubkey,
-// 	})
-// 	if err != nil {
-// 		return &lnrpc.NodeInfo{}, err
-// 	}
-// 	return info, nil
-// }
-
-// // getNodeAlias returns the alias of a node pubkey
-// func (app *App) getNodeAlias(ctx context.Context, pubkey string) (string, error) {
-// 	info, err := app.getNodeInfo(ctx, pubkey)
-// 	if err != nil {
-// 		return "", err
-// 	}
-
-// 	if info.Node == nil {
-// 		return "", errors.New("node info not available")
-// 	}
-// 	return info.Node.Alias, nil
-// }
-
-// // getMyPubkey returns the pubkey of my own node
-// func (app *App) getMyInfo(ctx context.Context) (*lnrpc.GetInfoResponse, error) {
-// 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-// 	defer cancel()
-
-// 	info, err := app.client.GetInfo(ctx, &lnrpc.GetInfoRequest{})
-// 	if err != nil {
-// 		return &lnrpc.GetInfoResponse{}, err
-// 	}
-// 	return info, nil
-// }
-
-// type channelEdge struct {
-// 	node1Pub, node2Pub route.Vertex
-// }
-
-// // getPubKeyFromChannel returns the pubkey of the remote node in a channel
-// func (app *App) getPubKeyFromChannel(ctx context.Context, chan_id uint64) (*channelEdge, error) {
-// 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-// 	defer cancel()
-
-// 	info, err := app.client.GetChanInfo(ctx, &lnrpc.ChanInfoRequest{
-// 		ChanId: chan_id,
-// 	})
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	node1Pub, err := route.NewVertexFromStr(info.Node1Pub)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	node2Pub, err := route.NewVertexFromStr(info.Node2Pub)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	return &channelEdge{
-// 		node1Pub: node1Pub,
-// 		node2Pub: node2Pub,
-// 	}, nil
-// }

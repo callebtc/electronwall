@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"sync"
@@ -84,6 +85,7 @@ func (app *App) interceptHtlcEvents(ctx context.Context) error {
 			}
 
 			log.Tracef("[forward] HTLC event (%d->%d)", event.IncomingCircuitKey.ChanId, event.OutgoingRequestedChanId)
+
 			forward_info_string := fmt.Sprintf(
 				"from %s to %s (%d sat, chan_id:%s->%s, htlc_id:%d)",
 				aliasFrom,
@@ -97,11 +99,22 @@ func (app *App) interceptHtlcEvents(ctx context.Context) error {
 			response := &routerrpc.ForwardHtlcInterceptResponse{
 				IncomingCircuitKey: event.IncomingCircuitKey,
 			}
+
+			contextLogger := log.WithFields(log.Fields{
+				"event":       "forward_request",
+				"in_alias":    aliasFrom,
+				"out_alias":   aliasTo,
+				"amount":      event.IncomingAmountMsat / 1000,
+				"in_chan_id":  ParseChannelID(event.IncomingCircuitKey.ChanId),
+				"out_chan_id": ParseChannelID(event.OutgoingRequestedChanId),
+				"htlc_id":     event.IncomingCircuitKey.HtlcId,
+			})
+
 			if <-decision_chan {
-				log.Infof("[forward] ✅ Allow HTLC %s", forward_info_string)
+				contextLogger.Infof("[forward] ✅ Allow HTLC %s", forward_info_string)
 				response.Action = routerrpc.ResolveHoldForwardAction_RESUME
 			} else {
-				log.Infof("[forward] ❌ Deny HTLC %s", forward_info_string)
+				contextLogger.Infof("[forward] ❌ Deny HTLC %s", forward_info_string)
 				response.Action = routerrpc.ResolveHoldForwardAction_FAIL
 			}
 			err = interceptor.Send(response)
@@ -122,6 +135,9 @@ func (app *App) interceptHtlcEvents(ctx context.Context) error {
 func (app *App) htlcInterceptDecision(ctx context.Context, event *routerrpc.ForwardHtlcInterceptRequest, decision_chan chan bool) {
 	var accept bool
 	var listToParse []string
+
+	// // sleep for 60 seconds
+	// time.Sleep(60 * time.Second)
 
 	// determine filtering mode and list to parse
 	switch Configuration.ForwardMode {
@@ -181,18 +197,29 @@ func (app *App) logHtlcEvents(ctx context.Context) error {
 			continue
 		}
 
+		contextLogger := log.WithFields(log.Fields{
+			"event":   "forward_event",
+			"chan_id": ParseChannelID(event.IncomingChannelId),
+			"htlc_id": event.IncomingHtlcId,
+		})
+
 		switch event.Event.(type) {
 		case *routerrpc.HtlcEvent_SettleEvent:
-			log.Debugf("[forward] ⚡️ HTLC SettleEvent (chan_id:%s, htlc_id:%d)", ParseChannelID(event.IncomingChannelId), event.IncomingHtlcId)
+			contextLogger.Infof("[forward] ⚡️ HTLC SettleEvent")
+			log.Debugf("[forward] Preimage: %s", hex.EncodeToString(event.GetSettleEvent().Preimage))
 
 		case *routerrpc.HtlcEvent_ForwardFailEvent:
-			log.Debugf("[forward] HTLC ForwardFailEvent (chan_id:%s, htlc_id:%d)", ParseChannelID(event.IncomingChannelId), event.IncomingHtlcId)
+			contextLogger.Infof("[forward] HTLC ForwardFailEvent")
+			log.Debugf("[forward] Reason: %s", event.GetForwardFailEvent().String())
 
 		case *routerrpc.HtlcEvent_ForwardEvent:
-			log.Debugf("[forward] HTLC ForwardEvent (chan_id:%s, htlc_id:%d)", ParseChannelID(event.IncomingChannelId), event.IncomingHtlcId)
+			contextLogger.Infof("[forward] HTLC ForwardEvent")
+			// log.Infof("[forward] HTLC ForwardEvent (chan_id:%s, htlc_id:%d)", ParseChannelID(event.IncomingChannelId), event.IncomingHtlcId)
+			// log.Debugf("[forward] Details: %s", event.GetForwardEvent().String())
 
 		case *routerrpc.HtlcEvent_LinkFailEvent:
-			log.Debugf("[forward] HTLC LinkFailEvent (chan_id:%s, htlc_id:%d)", ParseChannelID(event.IncomingChannelId), event.IncomingHtlcId)
+			contextLogger.Infof("[forward] HTLC LinkFailEvent")
+			log.Debugf("[forward] Reason: %s", event.GetLinkFailEvent().FailureString)
 		}
 
 	}
