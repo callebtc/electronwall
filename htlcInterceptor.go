@@ -215,7 +215,7 @@ func (app *App) logHtlcEvents(ctx context.Context) error {
 		case *routerrpc.HtlcEvent_SettleEvent:
 			if Configuration.LogJson {
 				contextLogger.Infof("SettleEvent")
-				contextLogger.Debugf("[forward] Preimage: %s", hex.EncodeToString(event.GetSettleEvent().Preimage))
+				// contextLogger.Debugf("[forward] Preimage: %s", hex.EncodeToString(event.GetSettleEvent().Preimage))
 			} else {
 				log.Infof("[forward] ⚡️ HTLC SettleEvent")
 				log.Debugf("[forward] Preimage: %s", hex.EncodeToString(event.GetSettleEvent().Preimage))
@@ -224,10 +224,10 @@ func (app *App) logHtlcEvents(ctx context.Context) error {
 		case *routerrpc.HtlcEvent_ForwardFailEvent:
 			if Configuration.LogJson {
 				contextLogger.Infof("ForwardFailEvent")
-				contextLogger.Debugf("[forward] Reason: %s", event.GetForwardFailEvent())
+				// contextLogger.Debugf("[forward] Reason: %s", event.GetForwardFailEvent())
 			} else {
 				log.Infof("[forward] HTLC ForwardFailEvent")
-				log.Debugf("[forward] Reason: %s", event.GetForwardFailEvent().String())
+				// log.Debugf("[forward] Reason: %s", event.GetForwardFailEvent().String())
 			}
 
 		case *routerrpc.HtlcEvent_ForwardEvent:
