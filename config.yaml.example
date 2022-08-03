@@ -8,7 +8,7 @@ macaroon_path: "/home/bitcoin/.lnd/data/chain/bitcoin/mainnet/admin.macaroon"
 tls-path: "/home/bitcoin/.lnd/tls.cert"
 debug: true
 # to get only json output
-# log-mode: "json"
+# log-json: true
 
 # ----- Channel openings -----
 
