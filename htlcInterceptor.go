@@ -217,7 +217,7 @@ func (app *App) logHtlcEvents(ctx context.Context) error {
 				contextLogger.Infof("SettleEvent")
 				// contextLogger.Debugf("[forward] Preimage: %s", hex.EncodeToString(event.GetSettleEvent().Preimage))
 			} else {
-				log.Infof("[forward] ⚡️ HTLC SettleEvent")
+				log.Infof("[forward] ⚡️ HTLC SettleEvent (chan_id:%s, htlc_id:%d)", ParseChannelID(event.IncomingChannelId), event.IncomingHtlcId)
 				log.Debugf("[forward] Preimage: %s", hex.EncodeToString(event.GetSettleEvent().Preimage))
 			}
 
@@ -226,7 +226,7 @@ func (app *App) logHtlcEvents(ctx context.Context) error {
 				contextLogger.Infof("ForwardFailEvent")
 				// contextLogger.Debugf("[forward] Reason: %s", event.GetForwardFailEvent())
 			} else {
-				log.Infof("[forward] HTLC ForwardFailEvent")
+				log.Infof("[forward] HTLC ForwardFailEvent (chan_id:%s, htlc_id:%d)", ParseChannelID(event.IncomingChannelId), event.IncomingHtlcId)
 				// log.Debugf("[forward] Reason: %s", event.GetForwardFailEvent().String())
 			}
 
@@ -234,7 +234,7 @@ func (app *App) logHtlcEvents(ctx context.Context) error {
 			if Configuration.LogJson {
 				contextLogger.Infof("ForwardEvent")
 			} else {
-				log.Infof("[forward] HTLC ForwardEvent")
+				log.Infof("[forward] HTLC ForwardEvent (chan_id:%s, htlc_id:%d)", ParseChannelID(event.IncomingChannelId), event.IncomingHtlcId)
 			}
 			// log.Infof("[forward] HTLC ForwardEvent (chan_id:%s, htlc_id:%d)", ParseChannelID(event.IncomingChannelId), event.IncomingHtlcId)
 			// log.Debugf("[forward] Details: %s", event.GetForwardEvent().String())
@@ -244,7 +244,7 @@ func (app *App) logHtlcEvents(ctx context.Context) error {
 				contextLogger.Infof("LinkFailEvent")
 				contextLogger.Debugf("[forward] Reason: %s", event.GetLinkFailEvent().FailureString)
 			} else {
-				log.Infof("[forward] HTLC LinkFailEvent")
+				log.Infof("[forward] HTLC LinkFailEvent (chan_id:%s, htlc_id:%d)", ParseChannelID(event.IncomingChannelId), event.IncomingHtlcId)
 				log.Debugf("[forward] Reason: %s", event.GetLinkFailEvent().FailureString)
 			}
 
