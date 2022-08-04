@@ -218,7 +218,9 @@ func (app *App) logHtlcEvents(ctx context.Context) error {
 				// contextLogger.Debugf("[forward] Preimage: %s", hex.EncodeToString(event.GetSettleEvent().Preimage))
 			} else {
 				log.Infof("[forward] ⚡️ HTLC SettleEvent (chan_id:%s, htlc_id:%d)", ParseChannelID(event.IncomingChannelId), event.IncomingHtlcId)
-				log.Debugf("[forward] Preimage: %s", hex.EncodeToString(event.GetSettleEvent().Preimage))
+				if event.GetSettleEvent() != nil && event.GetSettleEvent().Preimage != nil {
+					log.Debugf("[forward] Preimage: %s", hex.EncodeToString(event.GetSettleEvent().Preimage))
+				}
 			}
 
 		case *routerrpc.HtlcEvent_ForwardFailEvent:
