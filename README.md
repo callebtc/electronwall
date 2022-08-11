@@ -1,5 +1,7 @@
 # ⚡️🛡 electronwall
-A tiny firewall for LND that can filter Lightning **channel opening requests** and **HTLC forwards** on your node based on set rules. electronwall runs in the background and either allows (allowlist) or rejects (denylist) events from a list of node public keys for channel openings, or channel IDs and channel pairs for payment routings.
+A tiny firewall for LND that can filter Lightning **channel opening requests** and **HTLC forwards** on your node based on set rules. 
+
+Currently, electronwall is based on lists that either allow (allowlist) or reject (denylist) events from a list of node public keys for channel openings, or channel IDs and channel pairs for payment routings.
 
 ![electronwall0 3 2](https://user-images.githubusercontent.com/93376500/178162791-e6ba90c1-2798-471d-b7aa-0b12eae8bf2e.png)
 
