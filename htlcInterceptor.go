@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -205,16 +206,21 @@ func (app *App) logHtlcEvents(ctx context.Context) error {
 			continue
 		}
 
-		contextLogger := log.WithFields(log.Fields{
-			"event":   "forward_event",
-			"chan_id": ParseChannelID(event.IncomingChannelId),
-			"htlc_id": event.IncomingHtlcId,
-		})
+		contextLogger := func(event *routerrpc.HtlcEvent) *log.Entry {
+			b, err := json.Marshal(event)
+			if err != nil {
+				panic(err)
+			}
+			return log.WithFields(log.Fields{
+				"type":  "forward",
+				"event": string(b),
+			})
+		}
 
 		switch event.Event.(type) {
 		case *routerrpc.HtlcEvent_SettleEvent:
 			if Configuration.LogJson {
-				contextLogger.Infof("SettleEvent")
+				contextLogger(event).Infof("SettleEvent")
 				// contextLogger.Debugf("[forward] Preimage: %s", hex.EncodeToString(event.GetSettleEvent().Preimage))
 			} else {
 				log.Infof("[forward] ⚡️ HTLC SettleEvent (chan_id:%s, htlc_id:%d)", ParseChannelID(event.IncomingChannelId), event.IncomingHtlcId)
@@ -225,7 +231,7 @@ func (app *App) logHtlcEvents(ctx context.Context) error {
 
 		case *routerrpc.HtlcEvent_ForwardFailEvent:
 			if Configuration.LogJson {
-				contextLogger.Infof("ForwardFailEvent")
+				contextLogger(event).Infof("ForwardFailEvent")
 				// contextLogger.Debugf("[forward] Reason: %s", event.GetForwardFailEvent())
 			} else {
 				log.Infof("[forward] HTLC ForwardFailEvent (chan_id:%s, htlc_id:%d)", ParseChannelID(event.IncomingChannelId), event.IncomingHtlcId)
@@ -234,7 +240,7 @@ func (app *App) logHtlcEvents(ctx context.Context) error {
 
 		case *routerrpc.HtlcEvent_ForwardEvent:
 			if Configuration.LogJson {
-				contextLogger.Infof("ForwardEvent")
+				contextLogger(event).Infof("ForwardEvent")
 			} else {
 				log.Infof("[forward] HTLC ForwardEvent (chan_id:%s, htlc_id:%d)", ParseChannelID(event.IncomingChannelId), event.IncomingHtlcId)
 			}
@@ -243,8 +249,8 @@ func (app *App) logHtlcEvents(ctx context.Context) error {
 
 		case *routerrpc.HtlcEvent_LinkFailEvent:
 			if Configuration.LogJson {
-				contextLogger.Infof("LinkFailEvent")
-				contextLogger.Debugf("[forward] Reason: %s", event.GetLinkFailEvent().FailureString)
+				contextLogger(event).Infof("LinkFailEvent")
+				// contextLogger(event).Debugf("[forward] Reason: %s", event.GetLinkFailEvent().FailureString)
 			} else {
 				log.Infof("[forward] HTLC LinkFailEvent (chan_id:%s, htlc_id:%d)", ParseChannelID(event.IncomingChannelId), event.IncomingHtlcId)
 				log.Debugf("[forward] Reason: %s", event.GetLinkFailEvent().FailureString)

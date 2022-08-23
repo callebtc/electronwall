@@ -67,25 +67,6 @@ func (app *App) interceptChannelEvents(ctx context.Context) error {
 			log.Errorf(err.Error())
 		}
 
-		// determine mode and list of channels to parse
-		var accept bool
-		var listToParse []string
-		if Configuration.ChannelMode == "allowlist" {
-			accept = false
-			listToParse = Configuration.ChannelAllowlist
-		} else if Configuration.ChannelMode == "denylist" {
-			accept = true
-			listToParse = Configuration.ChannelDenylist
-		}
-
-		// parse and make decision
-		for _, pubkey := range listToParse {
-			if hex.EncodeToString(req.NodePubkey) == pubkey || pubkey == "*" {
-				accept = !accept
-				break
-			}
-		}
-
 		var channel_info_string string
 		if alias != "" {
 			channel_info_string = fmt.Sprintf("(%d sat) from %s (%s, %d sat capacity, %d channels)",
@@ -113,6 +94,9 @@ func (app *App) interceptChannelEvents(ctx context.Context) error {
 			"total_capacity":  info.TotalCapacity,
 			"num_channels":    info.NumChannels,
 		})
+
+		// make decision
+		accept := app.channelAcceptDecision(req)
 
 		res := lnrpc.ChannelAcceptResponse{}
 		if accept {
@@ -144,6 +128,29 @@ func (app *App) interceptChannelEvents(ctx context.Context) error {
 			log.Errorf(err.Error())
 		}
 	}
+
+}
+
+func (app *App) channelAcceptDecision(req lnrpc.ChannelAcceptRequest) bool {
+	// determine mode and list of channels to parse
+	var accept bool
+	var listToParse []string
+	if Configuration.ChannelMode == "allowlist" {
+		accept = false
+		listToParse = Configuration.ChannelAllowlist
+	} else if Configuration.ChannelMode == "denylist" {
+		accept = true
+		listToParse = Configuration.ChannelDenylist
+	}
+
+	// parse and make decision
+	for _, pubkey := range listToParse {
+		if hex.EncodeToString(req.NodePubkey) == pubkey || pubkey == "*" {
+			accept = !accept
+			break
+		}
+	}
+	return accept
 
 }
 
