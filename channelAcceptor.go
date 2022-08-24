@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/callebtc/electronwall/rules"
 	"github.com/lightningnetwork/lnd/lnrpc"
 	log "github.com/sirupsen/logrus"
 )
@@ -96,7 +97,18 @@ func (app *App) interceptChannelEvents(ctx context.Context) error {
 		})
 
 		// make decision
-		accept := app.channelAcceptDecision(req)
+		decision_chan := make(chan bool, 1)
+		acceptRules, err := rules.Apply(req, decision_chan)
+		if err != nil {
+			return err
+		}
+		// parse list
+		acceptList := app.channelAcceptDecision(req)
+
+		accept := true
+		if !acceptRules || !acceptList {
+			accept = false
+		}
 
 		res := lnrpc.ChannelAcceptResponse{}
 		if accept {

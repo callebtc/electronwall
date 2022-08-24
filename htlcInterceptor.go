@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/callebtc/electronwall/rules"
 	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
 	log "github.com/sirupsen/logrus"
 )
@@ -50,7 +51,8 @@ func (app *App) interceptHtlcEvents(ctx context.Context) error {
 		go func() {
 			// decision for routing
 			decision_chan := make(chan bool, 1)
-			go app.htlcInterceptDecision(ctx, event, decision_chan)
+			// go app.htlcInterceptDecision(ctx, event, decision_chan)
+			go rules.Apply(event, decision_chan)
 
 			channelEdge, err := app.lnd.getPubKeyFromChannel(ctx, event.IncomingCircuitKey.ChanId)
 			if err != nil {
