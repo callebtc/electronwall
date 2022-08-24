@@ -1,2 +1,2 @@
-ChannelAcceptRequest.FundingAmt > 750000;
+ChannelAcceptRequest.FundingAmt >= 750000;
 

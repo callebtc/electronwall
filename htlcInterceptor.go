@@ -13,6 +13,56 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type HtlcForwardEvent struct {
+	pubkeyFrom string
+	aliasFrom  string
+	pubkeyTo   string
+	aliasTo    string
+}
+
+// getHtlcForwardEvent returns a struct containing relevant information about the current
+// forward request that the decision engine can then use
+func (app *App) getHtlcForwardEvent(ctx context.Context, event *routerrpc.ForwardHtlcInterceptRequest) (HtlcForwardEvent, error) {
+	channelEdge, err := app.lnd.getPubKeyFromChannel(ctx, event.IncomingCircuitKey.ChanId)
+	if err != nil {
+		log.Errorf("[forward] Error getting pubkey for channel %s", ParseChannelID(event.IncomingCircuitKey.ChanId))
+	}
+	var pubkeyFrom, aliasFrom, pubkeyTo, aliasTo string
+	if channelEdge.Node1Pub != app.myInfo.IdentityPubkey {
+		pubkeyFrom = channelEdge.Node1Pub
+	} else {
+		pubkeyFrom = channelEdge.Node2Pub
+	}
+	aliasFrom, err = app.lnd.getNodeAlias(ctx, pubkeyFrom)
+	if err != nil {
+		aliasFrom = trimPubKey([]byte(pubkeyFrom))
+		log.Errorf("[forward] Error getting alias for node %s", aliasFrom)
+	}
+
+	// we need to figure out which side of the channel is the other end
+	channelEdgeTo, err := app.lnd.getPubKeyFromChannel(ctx, event.OutgoingRequestedChanId)
+	if err != nil {
+		log.Errorf("[forward] Error getting pubkey for channel %s", ParseChannelID(event.OutgoingRequestedChanId))
+	}
+	if channelEdgeTo.Node1Pub != app.myInfo.IdentityPubkey {
+		pubkeyTo = channelEdgeTo.Node1Pub
+	} else {
+		pubkeyTo = channelEdgeTo.Node2Pub
+	}
+	aliasTo, err = app.lnd.getNodeAlias(ctx, pubkeyTo)
+	if err != nil {
+		aliasTo = trimPubKey([]byte(pubkeyTo))
+		log.Errorf("[forward] Error getting alias for node %s", aliasTo)
+	}
+
+	return HtlcForwardEvent{
+		pubkeyFrom: pubkeyFrom,
+		aliasFrom:  aliasFrom,
+		pubkeyTo:   pubkeyTo,
+		aliasTo:    aliasTo,
+	}, nil
+}
+
 // DispatchHTLCAcceptor is the HTLC acceptor event loop
 func (app *App) DispatchHTLCAcceptor(ctx context.Context) {
 	go func() {
@@ -49,78 +99,62 @@ func (app *App) interceptHtlcEvents(ctx context.Context) error {
 			return err
 		}
 		go func() {
-			// decision for routing
-			decision_chan := make(chan bool, 1)
-			// go app.htlcInterceptDecision(ctx, event, decision_chan)
-			go rules.Apply(event, decision_chan)
-
-			channelEdge, err := app.lnd.getPubKeyFromChannel(ctx, event.IncomingCircuitKey.ChanId)
-			if err != nil {
-				log.Errorf("[forward] Error getting pubkey for channel %s", ParseChannelID(event.IncomingCircuitKey.ChanId))
-			}
-
-			var pubkeyFrom, aliasFrom, pubkeyTo, aliasTo string
-			if channelEdge.Node1Pub != app.myInfo.IdentityPubkey {
-				pubkeyFrom = channelEdge.Node1Pub
-			} else {
-				pubkeyFrom = channelEdge.Node2Pub
-			}
-			aliasFrom, err = app.lnd.getNodeAlias(ctx, pubkeyFrom)
-			if err != nil {
-				aliasFrom = trimPubKey([]byte(pubkeyFrom))
-				log.Errorf("[forward] Error getting alias for node %s", aliasFrom)
-			}
-
-			// we need to figure out which side of the channel is the other end
-			channelEdgeTo, err := app.lnd.getPubKeyFromChannel(ctx, event.OutgoingRequestedChanId)
-			if err != nil {
-				log.Errorf("[forward] Error getting pubkey for channel %s", ParseChannelID(event.OutgoingRequestedChanId))
-			}
-			if channelEdgeTo.Node1Pub != app.myInfo.IdentityPubkey {
-				pubkeyTo = channelEdgeTo.Node1Pub
-			} else {
-				pubkeyTo = channelEdgeTo.Node2Pub
-			}
-			aliasTo, err = app.lnd.getNodeAlias(ctx, pubkeyTo)
-			if err != nil {
-				aliasTo = trimPubKey([]byte(pubkeyTo))
-				log.Errorf("[forward] Error getting alias for node %s", aliasTo)
-			}
 
 			log.Tracef("[forward] HTLC event (%d->%d)", event.IncomingCircuitKey.ChanId, event.OutgoingRequestedChanId)
+			htlcForwardEvent, err := app.getHtlcForwardEvent(ctx, event)
+			if err != nil {
+				return
+			}
 
 			forward_info_string := fmt.Sprintf(
 				"from %s to %s (%d sat, chan_id:%s->%s, htlc_id:%d)",
-				aliasFrom,
-				aliasTo,
+				htlcForwardEvent.aliasFrom,
+				htlcForwardEvent.aliasTo,
 				event.IncomingAmountMsat/1000,
 				ParseChannelID(event.IncomingCircuitKey.ChanId),
 				ParseChannelID(event.OutgoingRequestedChanId),
 				event.IncomingCircuitKey.HtlcId,
 			)
 
-			response := &routerrpc.ForwardHtlcInterceptResponse{
-				IncomingCircuitKey: event.IncomingCircuitKey,
-			}
-
 			contextLogger := log.WithFields(log.Fields{
 				"event":       "forward_request",
-				"in_alias":    aliasFrom,
-				"out_alias":   aliasTo,
+				"in_alias":    htlcForwardEvent.aliasFrom,
+				"out_alias":   htlcForwardEvent.aliasTo,
 				"amount":      event.IncomingAmountMsat / 1000,
 				"in_chan_id":  ParseChannelID(event.IncomingCircuitKey.ChanId),
 				"out_chan_id": ParseChannelID(event.OutgoingRequestedChanId),
 				"htlc_id":     event.IncomingCircuitKey.HtlcId,
 			})
 
-			if <-decision_chan {
+			// decision for routing
+			decision_chan := make(chan bool, 1)
+
+			list_decision, err := app.htlcInterceptDecision(ctx, event, decision_chan)
+			if err != nil {
+				return
+			}
+			rules_decision, err := rules.Apply(event, decision_chan)
+			if err != nil {
+				return
+			}
+
+			accept := true
+			if !list_decision || !rules_decision {
+				accept = false
+			}
+
+			response := &routerrpc.ForwardHtlcInterceptResponse{
+				IncomingCircuitKey: event.IncomingCircuitKey,
+			}
+			switch accept {
+			case true:
 				if Configuration.LogJson {
 					contextLogger.Infof("allow")
 				} else {
 					log.Infof("[forward] ✅ Allow HTLC %s", forward_info_string)
 				}
 				response.Action = routerrpc.ResolveHoldForwardAction_RESUME
-			} else {
+			case false:
 				if Configuration.LogJson {
 					contextLogger.Infof("deny")
 				} else {
@@ -143,7 +177,7 @@ func (app *App) interceptHtlcEvents(ctx context.Context) error {
 // 1. Either use a allowlist or a denylist.
 // 2. If a single channel ID is used (12320768x65536x0), check the incoming ID of the HTLC against the list.
 // 3. If two channel IDs are used (7929856x65537x0->7143424x65537x0), check the incoming ID and the outgoing ID of the HTLC against the list.
-func (app *App) htlcInterceptDecision(ctx context.Context, event *routerrpc.ForwardHtlcInterceptRequest, decision_chan chan bool) {
+func (app *App) htlcInterceptDecision(ctx context.Context, event *routerrpc.ForwardHtlcInterceptRequest, decision_chan chan bool) (bool, error) {
 	var accept bool
 	var listToParse []string
 
@@ -159,8 +193,7 @@ func (app *App) htlcInterceptDecision(ctx context.Context, event *routerrpc.Forw
 		accept = true
 		listToParse = Configuration.ForwardDenylist
 	default:
-		err := fmt.Errorf("unknown forward mode: %s", Configuration.ForwardMode)
-		panic(err)
+		return false, fmt.Errorf("unknown forward mode: %s", Configuration.ForwardMode)
 	}
 
 	// parse list and decide
@@ -187,7 +220,8 @@ func (app *App) htlcInterceptDecision(ctx context.Context, event *routerrpc.Forw
 			}
 		}
 	}
-	decision_chan <- accept
+	// decision_chan <- accept
+	return accept, nil
 }
 
 // logHtlcEvents reports on incoming htlc events

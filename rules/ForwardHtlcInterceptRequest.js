@@ -1,2 +1,2 @@
-ForwardHtlcInterceptRequest.OutgoingAmountMsat > 100000
+ForwardHtlcInterceptRequest.OutgoingAmountMsat >= 100000
 

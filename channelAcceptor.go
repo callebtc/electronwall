@@ -98,15 +98,18 @@ func (app *App) interceptChannelEvents(ctx context.Context) error {
 
 		// make decision
 		decision_chan := make(chan bool, 1)
-		acceptRules, err := rules.Apply(req, decision_chan)
+		rules_decision, err := rules.Apply(req, decision_chan)
 		if err != nil {
 			return err
 		}
 		// parse list
-		acceptList := app.channelAcceptDecision(req)
+		list_decision, err := app.channelAcceptDecision(req)
+		if err != nil {
+			return err
+		}
 
 		accept := true
-		if !acceptRules || !acceptList {
+		if !rules_decision || !list_decision {
 			accept = false
 		}
 
@@ -143,7 +146,7 @@ func (app *App) interceptChannelEvents(ctx context.Context) error {
 
 }
 
-func (app *App) channelAcceptDecision(req lnrpc.ChannelAcceptRequest) bool {
+func (app *App) channelAcceptDecision(req lnrpc.ChannelAcceptRequest) (bool, error) {
 	// determine mode and list of channels to parse
 	var accept bool
 	var listToParse []string
@@ -156,13 +159,14 @@ func (app *App) channelAcceptDecision(req lnrpc.ChannelAcceptRequest) bool {
 	}
 
 	// parse and make decision
+	log.Infof(hex.EncodeToString(req.NodePubkey))
 	for _, pubkey := range listToParse {
 		if hex.EncodeToString(req.NodePubkey) == pubkey || pubkey == "*" {
 			accept = !accept
 			break
 		}
 	}
-	return accept
+	return accept, nil
 
 }
 
