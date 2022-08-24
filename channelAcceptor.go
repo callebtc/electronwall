@@ -13,7 +13,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func (app *App) getChannelAcceptEvent(ctx context.Context, req lnrpc.ChannelAcceptRequest) (types.ChannelAcceptEvent, error) {
+func (app *App) GetChannelAcceptEvent(ctx context.Context, req lnrpc.ChannelAcceptRequest) (types.ChannelAcceptEvent, error) {
 	// print the incoming channel request
 	alias, err := app.lnd.getNodeAlias(ctx, hex.EncodeToString(req.NodePubkey))
 	if err != nil {
@@ -77,7 +77,7 @@ func (app *App) interceptChannelEvents(ctx context.Context) error {
 			return err
 		}
 
-		channelAcceptEvent, err := app.getChannelAcceptEvent(ctx, req)
+		channelAcceptEvent, err := app.GetChannelAcceptEvent(ctx, req)
 		if err != nil {
 			return err
 		}

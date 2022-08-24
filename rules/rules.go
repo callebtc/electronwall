@@ -28,12 +28,6 @@ func Apply(s interface{}, decision_chan chan bool) (accept bool, err error) {
 		if err != nil {
 			log.Fatal(err)
 		}
-	// case *routerrpc.ForwardHtlcInterceptRequest:
-	// 	vm.Set("HtlcForwardEvent", s)
-	// 	js_script, err = os.ReadFile("rules/ForwardHtlcInterceptRequest.js")
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
 	default:
 		return false, fmt.Errorf("no rule found for event type")
 	}

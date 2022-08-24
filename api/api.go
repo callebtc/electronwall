@@ -7,8 +7,8 @@ type ApiClient interface {
 }
 
 type ApiNodeInfo struct {
-	OneMl  OneML_NodeInfoResponse
-	Amboss Amboss_NodeInfoResponse
+	OneMl  OneML_NodeInfoResponse  `json:"1ml"`
+	Amboss Amboss_NodeInfoResponse `json:"amboss"`
 }
 
 func GetApiNodeinfo(pubkey string) (ApiNodeInfo, error) {
