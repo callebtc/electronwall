@@ -7,9 +7,29 @@ import (
 	"sync"
 
 	"github.com/callebtc/electronwall/rules"
+	"github.com/callebtc/electronwall/types"
 	"github.com/lightningnetwork/lnd/lnrpc"
 	log "github.com/sirupsen/logrus"
 )
+
+func (app *App) getChannelAcceptEvent(ctx context.Context, req lnrpc.ChannelAcceptRequest) (types.ChannelAcceptEvent, error) {
+	// print the incoming channel request
+	alias, err := app.lnd.getNodeAlias(ctx, hex.EncodeToString(req.NodePubkey))
+	if err != nil {
+		log.Errorf(err.Error())
+	}
+
+	info, err := app.lnd.getNodeInfo(ctx, hex.EncodeToString(req.NodePubkey))
+	if err != nil {
+		log.Errorf(err.Error())
+	}
+	return types.ChannelAcceptEvent{
+		PubkeyFrom: hex.EncodeToString(req.NodePubkey),
+		AliasFrom:  alias,
+		NodeInfo:   info,
+		Event:      &req,
+	}, nil
+}
 
 // DispatchChannelAcceptor is the channel acceptor event loop
 func (app *App) DispatchChannelAcceptor(ctx context.Context) {
@@ -17,8 +37,7 @@ func (app *App) DispatchChannelAcceptor(ctx context.Context) {
 	go func() {
 		err := app.logChannelEvents(ctx)
 		if err != nil {
-			log.Error("channel event logger error",
-				"err", err)
+			log.Errorf("channel event logger error: %v", err)
 		}
 	}()
 
@@ -26,8 +45,7 @@ func (app *App) DispatchChannelAcceptor(ctx context.Context) {
 	go func() {
 		err := app.interceptChannelEvents(ctx)
 		if err != nil {
-			log.Error("channel interceptor error",
-				"err", err)
+			log.Errorf("channel interceptor error: %v", err)
 		}
 		// release wait group for channel acceptor
 		ctx.Value(ctxKeyWaitGroup).(*sync.WaitGroup).Done()
@@ -50,55 +68,50 @@ func (app *App) interceptChannelEvents(ctx context.Context) error {
 			return err
 		}
 
-		// print the incoming channel request
-		alias, err := app.lnd.getNodeAlias(ctx, hex.EncodeToString(req.NodePubkey))
+		channelAcceptEvent, err := app.getChannelAcceptEvent(ctx, req)
 		if err != nil {
-			log.Errorf(err.Error())
+			return err
 		}
+
 		var node_info_string string
-		if alias != "" {
-			node_info_string = fmt.Sprintf("%s (%s)", alias, hex.EncodeToString(req.NodePubkey))
+		if channelAcceptEvent.AliasFrom != "" {
+			node_info_string = fmt.Sprintf("%s (%s)", channelAcceptEvent.AliasFrom, hex.EncodeToString(channelAcceptEvent.Event.NodePubkey))
 		} else {
-			node_info_string = hex.EncodeToString(req.NodePubkey)
+			node_info_string = hex.EncodeToString(channelAcceptEvent.Event.NodePubkey)
 		}
 		log.Debugf("[channel] New channel request from %s", node_info_string)
 
-		info, err := app.lnd.getNodeInfo(ctx, hex.EncodeToString(req.NodePubkey))
-		if err != nil {
-			log.Errorf(err.Error())
-		}
-
 		var channel_info_string string
-		if alias != "" {
+		if channelAcceptEvent.AliasFrom != "" {
 			channel_info_string = fmt.Sprintf("(%d sat) from %s (%s, %d sat capacity, %d channels)",
-				req.FundingAmt,
-				alias,
-				trimPubKey(req.NodePubkey),
-				info.TotalCapacity,
-				info.NumChannels,
+				channelAcceptEvent.Event.FundingAmt,
+				channelAcceptEvent.AliasFrom,
+				trimPubKey(channelAcceptEvent.Event.NodePubkey),
+				channelAcceptEvent.NodeInfo.TotalCapacity,
+				channelAcceptEvent.NodeInfo.NumChannels,
 			)
 		} else {
 			channel_info_string = fmt.Sprintf("(%d sat) from %s (%d sat capacity, %d channels)",
-				req.FundingAmt,
-				trimPubKey(req.NodePubkey),
-				info.TotalCapacity,
-				info.NumChannels,
+				channelAcceptEvent.Event.FundingAmt,
+				trimPubKey(channelAcceptEvent.Event.NodePubkey),
+				channelAcceptEvent.NodeInfo.TotalCapacity,
+				channelAcceptEvent.NodeInfo.NumChannels,
 			)
 		}
 
 		contextLogger := log.WithFields(log.Fields{
 			"event":           "channel_request",
-			"amount":          req.FundingAmt,
-			"alias":           alias,
-			"pubkey":          hex.EncodeToString(req.NodePubkey),
-			"pending_chan_id": hex.EncodeToString(req.PendingChanId),
-			"total_capacity":  info.TotalCapacity,
-			"num_channels":    info.NumChannels,
+			"amount":          channelAcceptEvent.Event.FundingAmt,
+			"alias":           channelAcceptEvent.AliasFrom,
+			"pubkey":          hex.EncodeToString(channelAcceptEvent.Event.NodePubkey),
+			"pending_chan_id": hex.EncodeToString(channelAcceptEvent.Event.PendingChanId),
+			"total_capacity":  channelAcceptEvent.NodeInfo.TotalCapacity,
+			"num_channels":    channelAcceptEvent.NodeInfo.NumChannels,
 		})
 
 		// make decision
 		decision_chan := make(chan bool, 1)
-		rules_decision, err := rules.Apply(req, decision_chan)
+		rules_decision, err := rules.Apply(channelAcceptEvent, decision_chan)
 		if err != nil {
 			return err
 		}

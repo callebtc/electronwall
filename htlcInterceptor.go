@@ -9,20 +9,14 @@ import (
 	"sync"
 
 	"github.com/callebtc/electronwall/rules"
+	"github.com/callebtc/electronwall/types"
 	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
 	log "github.com/sirupsen/logrus"
 )
 
-type HtlcForwardEvent struct {
-	pubkeyFrom string
-	aliasFrom  string
-	pubkeyTo   string
-	aliasTo    string
-}
-
 // getHtlcForwardEvent returns a struct containing relevant information about the current
 // forward request that the decision engine can then use
-func (app *App) getHtlcForwardEvent(ctx context.Context, event *routerrpc.ForwardHtlcInterceptRequest) (HtlcForwardEvent, error) {
+func (app *App) getHtlcForwardEvent(ctx context.Context, event *routerrpc.ForwardHtlcInterceptRequest) (types.HtlcForwardEvent, error) {
 	channelEdge, err := app.lnd.getPubKeyFromChannel(ctx, event.IncomingCircuitKey.ChanId)
 	if err != nil {
 		log.Errorf("[forward] Error getting pubkey for channel %s", ParseChannelID(event.IncomingCircuitKey.ChanId))
@@ -55,11 +49,12 @@ func (app *App) getHtlcForwardEvent(ctx context.Context, event *routerrpc.Forwar
 		log.Errorf("[forward] Error getting alias for node %s", aliasTo)
 	}
 
-	return HtlcForwardEvent{
-		pubkeyFrom: pubkeyFrom,
-		aliasFrom:  aliasFrom,
-		pubkeyTo:   pubkeyTo,
-		aliasTo:    aliasTo,
+	return types.HtlcForwardEvent{
+		PubkeyFrom: pubkeyFrom,
+		AliasFrom:  aliasFrom,
+		PubkeyTo:   pubkeyTo,
+		AliasTo:    aliasTo,
+		Event:      event,
 	}, nil
 }
 
@@ -108,8 +103,8 @@ func (app *App) interceptHtlcEvents(ctx context.Context) error {
 
 			forward_info_string := fmt.Sprintf(
 				"from %s to %s (%d sat, chan_id:%s->%s, htlc_id:%d)",
-				htlcForwardEvent.aliasFrom,
-				htlcForwardEvent.aliasTo,
+				htlcForwardEvent.AliasFrom,
+				htlcForwardEvent.AliasTo,
 				event.IncomingAmountMsat/1000,
 				ParseChannelID(event.IncomingCircuitKey.ChanId),
 				ParseChannelID(event.OutgoingRequestedChanId),
@@ -118,8 +113,8 @@ func (app *App) interceptHtlcEvents(ctx context.Context) error {
 
 			contextLogger := log.WithFields(log.Fields{
 				"event":       "forward_request",
-				"in_alias":    htlcForwardEvent.aliasFrom,
-				"out_alias":   htlcForwardEvent.aliasTo,
+				"in_alias":    htlcForwardEvent.AliasFrom,
+				"out_alias":   htlcForwardEvent.AliasTo,
 				"amount":      event.IncomingAmountMsat / 1000,
 				"in_chan_id":  ParseChannelID(event.IncomingCircuitKey.ChanId),
 				"out_chan_id": ParseChannelID(event.OutgoingRequestedChanId),
@@ -133,8 +128,9 @@ func (app *App) interceptHtlcEvents(ctx context.Context) error {
 			if err != nil {
 				return
 			}
-			rules_decision, err := rules.Apply(event, decision_chan)
+			rules_decision, err := rules.Apply(htlcForwardEvent, decision_chan)
 			if err != nil {
+				fmt.Printf("script error: %v", err)
 				return
 			}
 
