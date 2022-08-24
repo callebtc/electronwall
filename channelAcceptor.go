@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/callebtc/electronwall/rules"
 	"github.com/lightningnetwork/lnd/lnrpc"
 	log "github.com/sirupsen/logrus"
 )
@@ -67,25 +68,6 @@ func (app *App) interceptChannelEvents(ctx context.Context) error {
 			log.Errorf(err.Error())
 		}
 
-		// determine mode and list of channels to parse
-		var accept bool
-		var listToParse []string
-		if Configuration.ChannelMode == "allowlist" {
-			accept = false
-			listToParse = Configuration.ChannelAllowlist
-		} else if Configuration.ChannelMode == "denylist" {
-			accept = true
-			listToParse = Configuration.ChannelDenylist
-		}
-
-		// parse and make decision
-		for _, pubkey := range listToParse {
-			if hex.EncodeToString(req.NodePubkey) == pubkey || pubkey == "*" {
-				accept = !accept
-				break
-			}
-		}
-
 		var channel_info_string string
 		if alias != "" {
 			channel_info_string = fmt.Sprintf("(%d sat) from %s (%s, %d sat capacity, %d channels)",
@@ -113,6 +95,23 @@ func (app *App) interceptChannelEvents(ctx context.Context) error {
 			"total_capacity":  info.TotalCapacity,
 			"num_channels":    info.NumChannels,
 		})
+
+		// make decision
+		decision_chan := make(chan bool, 1)
+		rules_decision, err := rules.Apply(req, decision_chan)
+		if err != nil {
+			return err
+		}
+		// parse list
+		list_decision, err := app.channelAcceptDecision(req)
+		if err != nil {
+			return err
+		}
+
+		accept := true
+		if !rules_decision || !list_decision {
+			accept = false
+		}
 
 		res := lnrpc.ChannelAcceptResponse{}
 		if accept {
@@ -144,6 +143,30 @@ func (app *App) interceptChannelEvents(ctx context.Context) error {
 			log.Errorf(err.Error())
 		}
 	}
+
+}
+
+func (app *App) channelAcceptDecision(req lnrpc.ChannelAcceptRequest) (bool, error) {
+	// determine mode and list of channels to parse
+	var accept bool
+	var listToParse []string
+	if Configuration.ChannelMode == "allowlist" {
+		accept = false
+		listToParse = Configuration.ChannelAllowlist
+	} else if Configuration.ChannelMode == "denylist" {
+		accept = true
+		listToParse = Configuration.ChannelDenylist
+	}
+
+	// parse and make decision
+	log.Infof(hex.EncodeToString(req.NodePubkey))
+	for _, pubkey := range listToParse {
+		if hex.EncodeToString(req.NodePubkey) == pubkey || pubkey == "*" {
+			accept = !accept
+			break
+		}
+	}
+	return accept, nil
 
 }
 

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
@@ -21,13 +20,13 @@ func TestApp(t *testing.T) {
 	app.DispatchChannelAcceptor(ctx)
 	app.DispatchHTLCAcceptor(ctx)
 
-	time.Sleep(1 * time.Second)
 	cancel()
 }
 
 // --------------- HTLC Forward tests ---------------
 
-func TestHTLCDenylist(t *testing.T) {
+// both keys match: should be denied
+func TestHTLCDenylist_BothMatch(t *testing.T) {
 	client := newLndclientMock()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -38,17 +37,15 @@ func TestHTLCDenylist(t *testing.T) {
 	Configuration.ForwardDenylist = []string{"700762x1327x1->690757x1005x1"}
 
 	app.DispatchHTLCAcceptor(ctx)
-	time.Sleep(1 * time.Second)
-
-	// both keys match: should be denied
 
 	key := &routerrpc.CircuitKey{
 		ChanId: 770495967390531585,
-		HtlcId: 1337,
+		HtlcId: 1337000,
 	}
 	client.htlcInterceptorRequests <- &routerrpc.ForwardHtlcInterceptRequest{
 		IncomingCircuitKey:      key,
 		OutgoingRequestedChanId: 759495353533530113,
+		OutgoingAmountMsat:      99999999,
 	}
 
 	resp := <-client.htlcInterceptorResponses
@@ -60,64 +57,32 @@ func TestHTLCDenylist(t *testing.T) {
 		IncomingHtlcId:    key.HtlcId,
 		Event:             &routerrpc.HtlcEvent_SettleEvent{},
 	}
+}
 
-	// both keys no match: should be allowed
-	key = &routerrpc.CircuitKey{
+// both keys no match: should be allowed
+func TestHTLCDenylist_BothNoMatch(t *testing.T) {
+	client := newLndclientMock()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	app := NewApp(ctx, client)
+
+	Configuration.ForwardMode = "denylist"
+	Configuration.ForwardDenylist = []string{"700762x1327x1->690757x1005x1"}
+
+	app.DispatchHTLCAcceptor(ctx)
+
+	key := &routerrpc.CircuitKey{
 		ChanId: 123456789876543210,
-		HtlcId: 1337,
+		HtlcId: 1337000,
 	}
 	client.htlcInterceptorRequests <- &routerrpc.ForwardHtlcInterceptRequest{
 		IncomingCircuitKey:      key,
 		OutgoingRequestedChanId: 9876543210123456543,
+		OutgoingAmountMsat:      99999999,
 	}
 
-	resp = <-client.htlcInterceptorResponses
-	require.Equal(t, routerrpc.ResolveHoldForwardAction_RESUME, resp.Action)
-
-	client.htlcEvents <- &routerrpc.HtlcEvent{
-		EventType:         routerrpc.HtlcEvent_FORWARD,
-		IncomingChannelId: key.ChanId,
-		IncomingHtlcId:    key.HtlcId,
-		Event:             &routerrpc.HtlcEvent_SettleEvent{},
-	}
-
-	// wildcard out, both match: should be denied
-
-	Configuration.ForwardDenylist = []string{"700762x1327x1->*"}
-
-	key = &routerrpc.CircuitKey{
-		ChanId: 770495967390531585,
-		HtlcId: 1337,
-	}
-	client.htlcInterceptorRequests <- &routerrpc.ForwardHtlcInterceptRequest{
-		IncomingCircuitKey:      key,
-		OutgoingRequestedChanId: 759495353533530113,
-	}
-
-	resp = <-client.htlcInterceptorResponses
-	require.Equal(t, routerrpc.ResolveHoldForwardAction_FAIL, resp.Action)
-
-	client.htlcEvents <- &routerrpc.HtlcEvent{
-		EventType:         routerrpc.HtlcEvent_FORWARD,
-		IncomingChannelId: key.ChanId,
-		IncomingHtlcId:    key.HtlcId,
-		Event:             &routerrpc.HtlcEvent_SettleEvent{},
-	}
-
-	// wildcard out, first key doesn't match: should be allowed
-
-	Configuration.ForwardDenylist = []string{"700762x1327x1->*"}
-
-	key = &routerrpc.CircuitKey{
-		ChanId: 759495353533530113,
-		HtlcId: 1337,
-	}
-	client.htlcInterceptorRequests <- &routerrpc.ForwardHtlcInterceptRequest{
-		IncomingCircuitKey:      key,
-		OutgoingRequestedChanId: 759495353533530113,
-	}
-
-	resp = <-client.htlcInterceptorResponses
+	resp := <-client.htlcInterceptorResponses
 	require.Equal(t, routerrpc.ResolveHoldForwardAction_RESUME, resp.Action)
 
 	client.htlcEvents <- &routerrpc.HtlcEvent{
@@ -128,7 +93,81 @@ func TestHTLCDenylist(t *testing.T) {
 	}
 }
 
-func TestHTLCAllowlist(t *testing.T) {
+// wildcard out, both match: should be denied
+func TestHTLCDenylist_WildCardOutBothMatch(t *testing.T) {
+	client := newLndclientMock()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	app := NewApp(ctx, client)
+
+	Configuration.ForwardMode = "denylist"
+	Configuration.ForwardDenylist = []string{"700762x1327x1->690757x1005x1"}
+
+	app.DispatchHTLCAcceptor(ctx)
+
+	Configuration.ForwardDenylist = []string{"700762x1327x1->*"}
+
+	key := &routerrpc.CircuitKey{
+		ChanId: 770495967390531585,
+		HtlcId: 1337000,
+	}
+	client.htlcInterceptorRequests <- &routerrpc.ForwardHtlcInterceptRequest{
+		IncomingCircuitKey:      key,
+		OutgoingRequestedChanId: 759495353533530113,
+		OutgoingAmountMsat:      99999999,
+	}
+
+	resp := <-client.htlcInterceptorResponses
+	require.Equal(t, routerrpc.ResolveHoldForwardAction_FAIL, resp.Action)
+
+	client.htlcEvents <- &routerrpc.HtlcEvent{
+		EventType:         routerrpc.HtlcEvent_FORWARD,
+		IncomingChannelId: key.ChanId,
+		IncomingHtlcId:    key.HtlcId,
+		Event:             &routerrpc.HtlcEvent_SettleEvent{},
+	}
+}
+
+// wildcard out, one doesn't match match: should be allowed
+func TestHTLCDenylist_WildCardOutNoMatch(t *testing.T) {
+	client := newLndclientMock()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	app := NewApp(ctx, client)
+
+	Configuration.ForwardMode = "denylist"
+	Configuration.ForwardDenylist = []string{"700762x1327x1->690757x1005x1"}
+
+	app.DispatchHTLCAcceptor(ctx)
+
+	// wildcard out, first key doesn't match: should be allowed
+
+	Configuration.ForwardDenylist = []string{"700762x1327x1->*"}
+
+	key := &routerrpc.CircuitKey{
+		ChanId: 759495353533530113,
+		HtlcId: 1337000,
+	}
+	client.htlcInterceptorRequests <- &routerrpc.ForwardHtlcInterceptRequest{
+		IncomingCircuitKey:      key,
+		OutgoingRequestedChanId: 759495353533530113,
+		OutgoingAmountMsat:      99999999,
+	}
+
+	resp := <-client.htlcInterceptorResponses
+	require.Equal(t, routerrpc.ResolveHoldForwardAction_RESUME, resp.Action)
+
+	client.htlcEvents <- &routerrpc.HtlcEvent{
+		EventType:         routerrpc.HtlcEvent_FORWARD,
+		IncomingChannelId: key.ChanId,
+		IncomingHtlcId:    key.HtlcId,
+		Event:             &routerrpc.HtlcEvent_SettleEvent{},
+	}
+}
+
+func TestHTLCAllowlist_BothMatch(t *testing.T) {
 	client := newLndclientMock()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -136,7 +175,6 @@ func TestHTLCAllowlist(t *testing.T) {
 	app := NewApp(ctx, client)
 
 	app.DispatchHTLCAcceptor(ctx)
-	time.Sleep(1 * time.Second)
 
 	Configuration.ForwardMode = "allowlist"
 
@@ -146,11 +184,12 @@ func TestHTLCAllowlist(t *testing.T) {
 
 	key := &routerrpc.CircuitKey{
 		ChanId: 770495967390531585,
-		HtlcId: 1337,
+		HtlcId: 1337000,
 	}
 	client.htlcInterceptorRequests <- &routerrpc.ForwardHtlcInterceptRequest{
 		IncomingCircuitKey:      key,
 		OutgoingRequestedChanId: 759495353533530113,
+		OutgoingAmountMsat:      99999999,
 	}
 
 	resp := <-client.htlcInterceptorResponses
@@ -163,20 +202,32 @@ func TestHTLCAllowlist(t *testing.T) {
 		Event:             &routerrpc.HtlcEvent_SettleEvent{},
 	}
 
+}
+func TestHTLCAllowlist_BothNonMatch(t *testing.T) {
+	client := newLndclientMock()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	app := NewApp(ctx, client)
+
+	app.DispatchHTLCAcceptor(ctx)
+
+	Configuration.ForwardMode = "allowlist"
 	// both keys wrong: should be denied
 	Configuration.ForwardAllowlist = []string{"700762x1327x1->690757x1005x1"}
 	log.Tracef("[test] Mode: %s, Rules: %v", Configuration.ForwardMode, Configuration.ForwardAllowlist)
 
-	key = &routerrpc.CircuitKey{
+	key := &routerrpc.CircuitKey{
 		ChanId: 123456789876543210,
-		HtlcId: 1337,
+		HtlcId: 1337000,
 	}
 	client.htlcInterceptorRequests <- &routerrpc.ForwardHtlcInterceptRequest{
 		IncomingCircuitKey:      key,
 		OutgoingRequestedChanId: 9876543210123456543,
+		OutgoingAmountMsat:      99999999,
 	}
 
-	resp = <-client.htlcInterceptorResponses
+	resp := <-client.htlcInterceptorResponses
 	require.Equal(t, routerrpc.ResolveHoldForwardAction_FAIL, resp.Action)
 
 	client.htlcEvents <- &routerrpc.HtlcEvent{
@@ -185,18 +236,31 @@ func TestHTLCAllowlist(t *testing.T) {
 		IncomingHtlcId:    key.HtlcId,
 		Event:             &routerrpc.HtlcEvent_SettleEvent{},
 	}
+}
+func TestHTLCAllowlist_Wildcard(t *testing.T) {
+	client := newLndclientMock()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
+	app := NewApp(ctx, client)
+
+	app.DispatchHTLCAcceptor(ctx)
+
+	Configuration.ForwardMode = "allowlist"
 	// wildcard: should be allowed
-
 	Configuration.ForwardAllowlist = []string{"*"}
 	log.Tracef("[test] Mode: %s, Rules: %v", Configuration.ForwardMode, Configuration.ForwardAllowlist)
-
+	key := &routerrpc.CircuitKey{
+		ChanId: 123456789876543210,
+		HtlcId: 1337000,
+	}
 	client.htlcInterceptorRequests <- &routerrpc.ForwardHtlcInterceptRequest{
 		IncomingCircuitKey:      key,
 		OutgoingRequestedChanId: 9876543210123456543,
+		OutgoingAmountMsat:      99999999,
 	}
 
-	resp = <-client.htlcInterceptorResponses
+	resp := <-client.htlcInterceptorResponses
 	require.Equal(t, routerrpc.ResolveHoldForwardAction_RESUME, resp.Action)
 
 	client.htlcEvents <- &routerrpc.HtlcEvent{
@@ -205,22 +269,33 @@ func TestHTLCAllowlist(t *testing.T) {
 		IncomingHtlcId:    key.HtlcId,
 		Event:             &routerrpc.HtlcEvent_SettleEvent{},
 	}
+}
+func TestHTLCAllowlist_WildcardIn(t *testing.T) {
+	client := newLndclientMock()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
+	app := NewApp(ctx, client)
+
+	app.DispatchHTLCAcceptor(ctx)
+
+	Configuration.ForwardMode = "allowlist"
 	// wildcard in: should be allowed
 
 	Configuration.ForwardAllowlist = []string{"*->690757x1005x1"}
 	log.Tracef("[test] Mode: %s, Rules: %v", Configuration.ForwardMode, Configuration.ForwardAllowlist)
 
-	key = &routerrpc.CircuitKey{
+	key := &routerrpc.CircuitKey{
 		ChanId: 123456789876543210,
-		HtlcId: 1337,
+		HtlcId: 1337000,
 	}
 	client.htlcInterceptorRequests <- &routerrpc.ForwardHtlcInterceptRequest{
 		IncomingCircuitKey:      key,
 		OutgoingRequestedChanId: 759495353533530113,
+		OutgoingAmountMsat:      99999999,
 	}
 
-	resp = <-client.htlcInterceptorResponses
+	resp := <-client.htlcInterceptorResponses
 	require.Equal(t, routerrpc.ResolveHoldForwardAction_RESUME, resp.Action)
 
 	client.htlcEvents <- &routerrpc.HtlcEvent{
@@ -229,22 +304,32 @@ func TestHTLCAllowlist(t *testing.T) {
 		IncomingHtlcId:    key.HtlcId,
 		Event:             &routerrpc.HtlcEvent_SettleEvent{},
 	}
+}
+func TestHTLCAllowlist_WildcardOut(t *testing.T) {
+	client := newLndclientMock()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
+	app := NewApp(ctx, client)
+
+	app.DispatchHTLCAcceptor(ctx)
+
+	Configuration.ForwardMode = "allowlist"
 	// wildcard out: should be allowed
-
 	Configuration.ForwardAllowlist = []string{"700762x1327x1->*"}
 	log.Tracef("[test] Mode: %s, Rules: %v", Configuration.ForwardMode, Configuration.ForwardAllowlist)
 
-	key = &routerrpc.CircuitKey{
+	key := &routerrpc.CircuitKey{
 		ChanId: 770495967390531585,
-		HtlcId: 1337,
+		HtlcId: 1337000,
 	}
 	client.htlcInterceptorRequests <- &routerrpc.ForwardHtlcInterceptRequest{
 		IncomingCircuitKey:      key,
 		OutgoingRequestedChanId: 123456789876543210,
+		OutgoingAmountMsat:      99999999,
 	}
 
-	resp = <-client.htlcInterceptorResponses
+	resp := <-client.htlcInterceptorResponses
 	require.Equal(t, routerrpc.ResolveHoldForwardAction_RESUME, resp.Action)
 
 	client.htlcEvents <- &routerrpc.HtlcEvent{
@@ -253,22 +338,32 @@ func TestHTLCAllowlist(t *testing.T) {
 		IncomingHtlcId:    key.HtlcId,
 		Event:             &routerrpc.HtlcEvent_SettleEvent{},
 	}
+}
+func TestHTLCAllowlist_WildcardOutWrongKeyIn(t *testing.T) {
+	client := newLndclientMock()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
+	app := NewApp(ctx, client)
+
+	app.DispatchHTLCAcceptor(ctx)
+
+	Configuration.ForwardMode = "allowlist"
 	// wildcard out but wrong in key: should be denied
-
 	Configuration.ForwardAllowlist = []string{"700762x1327x1->*"}
 	log.Tracef("[test] Mode: %s, Rules: %v", Configuration.ForwardMode, Configuration.ForwardAllowlist)
 
-	key = &routerrpc.CircuitKey{
+	key := &routerrpc.CircuitKey{
 		ChanId: 123456789876543210,
-		HtlcId: 1337,
+		HtlcId: 1337000,
 	}
 	client.htlcInterceptorRequests <- &routerrpc.ForwardHtlcInterceptRequest{
 		IncomingCircuitKey:      key,
 		OutgoingRequestedChanId: 123456789876543210,
+		OutgoingAmountMsat:      99999999,
 	}
 
-	resp = <-client.htlcInterceptorResponses
+	resp := <-client.htlcInterceptorResponses
 	require.Equal(t, routerrpc.ResolveHoldForwardAction_FAIL, resp.Action)
 
 	client.htlcEvents <- &routerrpc.HtlcEvent{
@@ -277,22 +372,32 @@ func TestHTLCAllowlist(t *testing.T) {
 		IncomingHtlcId:    key.HtlcId,
 		Event:             &routerrpc.HtlcEvent_SettleEvent{},
 	}
+}
+func TestHTLCAllowlist_WildcardIn_WrongKeyOut(t *testing.T) {
+	client := newLndclientMock()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
+	app := NewApp(ctx, client)
+
+	app.DispatchHTLCAcceptor(ctx)
+
+	Configuration.ForwardMode = "allowlist"
 	// wildcard in but wrong out key: should be denied
-
 	Configuration.ForwardAllowlist = []string{"*->700762x1327x1"}
 	log.Tracef("[test] Mode: %s, Rules: %v", Configuration.ForwardMode, Configuration.ForwardAllowlist)
 
-	key = &routerrpc.CircuitKey{
+	key := &routerrpc.CircuitKey{
 		ChanId: 123456789876543210,
-		HtlcId: 1337,
+		HtlcId: 1337000,
 	}
 	client.htlcInterceptorRequests <- &routerrpc.ForwardHtlcInterceptRequest{
 		IncomingCircuitKey:      key,
 		OutgoingRequestedChanId: 123456789876543210,
+		OutgoingAmountMsat:      99999999,
 	}
 
-	resp = <-client.htlcInterceptorResponses
+	resp := <-client.htlcInterceptorResponses
 	require.Equal(t, routerrpc.ResolveHoldForwardAction_FAIL, resp.Action)
 
 	client.htlcEvents <- &routerrpc.HtlcEvent{
@@ -301,22 +406,32 @@ func TestHTLCAllowlist(t *testing.T) {
 		IncomingHtlcId:    key.HtlcId,
 		Event:             &routerrpc.HtlcEvent_SettleEvent{},
 	}
+}
+func TestHTLCAllowlist_WildcardBoth(t *testing.T) {
+	client := newLndclientMock()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
+	app := NewApp(ctx, client)
+
+	app.DispatchHTLCAcceptor(ctx)
+
+	Configuration.ForwardMode = "allowlist"
 	// wildcard both: should be allowed
-
 	Configuration.ForwardAllowlist = []string{"*->*"}
 	log.Tracef("[test] Mode: %s, Rules: %v", Configuration.ForwardMode, Configuration.ForwardAllowlist)
 
-	key = &routerrpc.CircuitKey{
+	key := &routerrpc.CircuitKey{
 		ChanId: 123456789876543210,
-		HtlcId: 1337,
+		HtlcId: 1337000,
 	}
 	client.htlcInterceptorRequests <- &routerrpc.ForwardHtlcInterceptRequest{
 		IncomingCircuitKey:      key,
 		OutgoingRequestedChanId: 123456789876543210,
+		OutgoingAmountMsat:      99999999,
 	}
 
-	resp = <-client.htlcInterceptorResponses
+	resp := <-client.htlcInterceptorResponses
 	require.Equal(t, routerrpc.ResolveHoldForwardAction_RESUME, resp.Action)
 
 	client.htlcEvents <- &routerrpc.HtlcEvent{
@@ -330,7 +445,7 @@ func TestHTLCAllowlist(t *testing.T) {
 
 // --------------- Channel accept tests ---------------
 
-func TestChannelAllowlist(t *testing.T) {
+func TestChannelAllowlist_CorrectKey(t *testing.T) {
 	client := newLndclientMock()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -341,13 +456,12 @@ func TestChannelAllowlist(t *testing.T) {
 	Configuration.ChannelAllowlist = []string{"6d792d7075626b65792d69732d766572792d6c6f6e672d666f722d7472696d6d696e672d7075626b6579"}
 
 	app.DispatchChannelAcceptor(ctx)
-	time.Sleep(1 * time.Second)
 
 	// correct key: should be allowed
 
 	client.channelAcceptorRequests <- &lnrpc.ChannelAcceptRequest{
 		NodePubkey:    []byte("my-pubkey-is-very-long-for-trimming-pubkey"),
-		FundingAmt:    1337,
+		FundingAmt:    1337000,
 		PendingChanId: []byte("759495353533530113"),
 	}
 
@@ -358,28 +472,37 @@ func TestChannelAllowlist(t *testing.T) {
 
 	client.channelAcceptorRequests <- &lnrpc.ChannelAcceptRequest{
 		NodePubkey:    []byte("WRONG PUBKEY"),
-		FundingAmt:    1337,
+		FundingAmt:    1337000,
 		PendingChanId: []byte("759495353533530113"),
 	}
 
 	resp = <-client.channelAcceptorResponses
 	require.Equal(t, resp.Accept, false)
+}
+func TestChannelAllowlist_Wildcard(t *testing.T) {
+	client := newLndclientMock()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	app := NewApp(ctx, client)
+
+	app.DispatchChannelAcceptor(ctx)
 
 	// wildcard: should be allowed
-
+	Configuration.ChannelMode = "allowlist"
 	Configuration.ChannelAllowlist = []string{"*"}
 
 	client.channelAcceptorRequests <- &lnrpc.ChannelAcceptRequest{
 		NodePubkey:    []byte("WRONG PUBKEY"),
-		FundingAmt:    1337,
+		FundingAmt:    1337000,
 		PendingChanId: []byte("759495353533530113"),
 	}
 
-	resp = <-client.channelAcceptorResponses
+	resp := <-client.channelAcceptorResponses
 	require.Equal(t, resp.Accept, true)
 }
 
-func TestChannelDenylist(t *testing.T) {
+func TestChannelDenylist_Match(t *testing.T) {
 	client := newLndclientMock()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -390,40 +513,38 @@ func TestChannelDenylist(t *testing.T) {
 	Configuration.ChannelDenylist = []string{"6d792d7075626b65792d69732d766572792d6c6f6e672d666f722d7472696d6d696e672d7075626b6579"}
 
 	app.DispatchChannelAcceptor(ctx)
-	time.Sleep(1 * time.Second)
 
 	// should be denied
 
 	client.channelAcceptorRequests <- &lnrpc.ChannelAcceptRequest{
 		NodePubkey:    []byte("my-pubkey-is-very-long-for-trimming-pubkey"),
-		FundingAmt:    1337,
+		FundingAmt:    1337000,
 		PendingChanId: []byte("759495353533530113"),
 	}
 
 	resp := <-client.channelAcceptorResponses
 	require.Equal(t, resp.Accept, false)
+}
+
+func TestChannelAllowlist_Match(t *testing.T) {
+	client := newLndclientMock()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	app := NewApp(ctx, client)
+
+	Configuration.ChannelMode = "allowlist"
+	Configuration.ChannelAllowlist = []string{"6d792d7075626b65792d69732d766572792d6c6f6e672d666f722d7472696d6d696e672d7075626b6579"}
+
+	app.DispatchChannelAcceptor(ctx)
 
 	// should be allowed
-
 	client.channelAcceptorRequests <- &lnrpc.ChannelAcceptRequest{
-		NodePubkey:    []byte("WRONG PUBKEY"),
-		FundingAmt:    1337,
+		NodePubkey:    []byte("my-pubkey-is-very-long-for-trimming-pubkey"),
+		FundingAmt:    1337000,
 		PendingChanId: []byte("759495353533530113"),
 	}
 
-	resp = <-client.channelAcceptorResponses
+	resp := <-client.channelAcceptorResponses
 	require.Equal(t, resp.Accept, true)
-
-	// wildcard: should be denied
-
-	Configuration.ChannelDenylist = []string{"*"}
-
-	client.channelAcceptorRequests <- &lnrpc.ChannelAcceptRequest{
-		NodePubkey:    []byte("WRONG PUBKEY"),
-		FundingAmt:    1337,
-		PendingChanId: []byte("759495353533530113"),
-	}
-
-	resp = <-client.channelAcceptorResponses
-	require.Equal(t, resp.Accept, false)
 }
