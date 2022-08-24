@@ -2,11 +2,11 @@ package rules
 
 import (
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/callebtc/electronwall/types"
 	"github.com/dop251/goja"
+	log "github.com/sirupsen/logrus"
 )
 
 func Apply(s interface{}, decision_chan chan bool) (accept bool, err error) {
@@ -41,7 +41,7 @@ func Apply(s interface{}, decision_chan chan bool) (accept bool, err error) {
 	// execute script
 	v, err := vm.RunString(string(js_script))
 	if err != nil {
-		fmt.Print(err.Error())
+		log.Errorf("JS error: %v", err)
 		return
 	}
 

@@ -1,2 +1,4 @@
-HtlcForward.Event.OutgoingAmountMsat >= 100000
+if (
+    HtlcForward.Event.OutgoingAmountMsat >= 100000
+) { true } else { false }
 

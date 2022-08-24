@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/callebtc/electronwall/api"
 	"github.com/callebtc/electronwall/rules"
 	"github.com/callebtc/electronwall/types"
 	"github.com/lightningnetwork/lnd/lnrpc"
@@ -23,11 +24,19 @@ func (app *App) getChannelAcceptEvent(ctx context.Context, req lnrpc.ChannelAcce
 	if err != nil {
 		log.Errorf(err.Error())
 	}
+
+	noeInfo, err := api.GetApiNodeinfo(string(req.NodePubkey))
+	if err != nil {
+		log.Errorf(err.Error())
+	}
+
 	return types.ChannelAcceptEvent{
 		PubkeyFrom: hex.EncodeToString(req.NodePubkey),
 		AliasFrom:  alias,
 		NodeInfo:   info,
 		Event:      &req,
+		OneMl:      noeInfo.OneMl,
+		Amboss:     noeInfo.Amboss,
 	}, nil
 }
 
@@ -172,9 +181,9 @@ func (app *App) channelAcceptDecision(req lnrpc.ChannelAcceptRequest) (bool, err
 	}
 
 	// parse and make decision
-	log.Infof(hex.EncodeToString(req.NodePubkey))
+	log.Infof("TRYING %s", string(req.NodePubkey))
 	for _, pubkey := range listToParse {
-		if hex.EncodeToString(req.NodePubkey) == pubkey || pubkey == "*" {
+		if string(req.NodePubkey) == pubkey || pubkey == "*" {
 			accept = !accept
 			break
 		}

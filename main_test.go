@@ -453,14 +453,14 @@ func TestChannelAllowlist_CorrectKey(t *testing.T) {
 	app := NewApp(ctx, client)
 
 	Configuration.ChannelMode = "allowlist"
-	Configuration.ChannelAllowlist = []string{"6d792d7075626b65792d69732d766572792d6c6f6e672d666f722d7472696d6d696e672d7075626b6579"}
+	Configuration.ChannelAllowlist = []string{"03006fcf3312dae8d068ea297f58e2bd00ec1ffe214b793eda46966b6294a53ce6"}
 
 	app.DispatchChannelAcceptor(ctx)
 
 	// correct key: should be allowed
 
 	client.channelAcceptorRequests <- &lnrpc.ChannelAcceptRequest{
-		NodePubkey:    []byte("my-pubkey-is-very-long-for-trimming-pubkey"),
+		NodePubkey:    []byte("03006fcf3312dae8d068ea297f58e2bd00ec1ffe214b793eda46966b6294a53ce6"),
 		FundingAmt:    1337000,
 		PendingChanId: []byte("759495353533530113"),
 	}
@@ -468,15 +468,27 @@ func TestChannelAllowlist_CorrectKey(t *testing.T) {
 	resp := <-client.channelAcceptorResponses
 	require.Equal(t, resp.Accept, true)
 
+}
+func TestChannelAllowlist_WrongKey(t *testing.T) {
+	client := newLndclientMock()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	app := NewApp(ctx, client)
+
+	Configuration.ChannelMode = "allowlist"
+	Configuration.ChannelAllowlist = []string{"03006fcf3312dae8d068ea297f58e2bd00ec1ffe214b793eda46966b6294a53ce6"}
+
+	app.DispatchChannelAcceptor(ctx)
 	// wrong key: should be denied
 
 	client.channelAcceptorRequests <- &lnrpc.ChannelAcceptRequest{
-		NodePubkey:    []byte("WRONG PUBKEY"),
+		NodePubkey:    []byte("WRONG-KEY"),
 		FundingAmt:    1337000,
 		PendingChanId: []byte("759495353533530113"),
 	}
 
-	resp = <-client.channelAcceptorResponses
+	resp := <-client.channelAcceptorResponses
 	require.Equal(t, resp.Accept, false)
 }
 func TestChannelAllowlist_Wildcard(t *testing.T) {
@@ -493,7 +505,7 @@ func TestChannelAllowlist_Wildcard(t *testing.T) {
 	Configuration.ChannelAllowlist = []string{"*"}
 
 	client.channelAcceptorRequests <- &lnrpc.ChannelAcceptRequest{
-		NodePubkey:    []byte("WRONG PUBKEY"),
+		NodePubkey:    []byte("03006fcf3312dae8d068ea297f58e2bd00ec1ffe214b793eda46966b6294a53ce6"),
 		FundingAmt:    1337000,
 		PendingChanId: []byte("759495353533530113"),
 	}
@@ -510,14 +522,14 @@ func TestChannelDenylist_Match(t *testing.T) {
 	app := NewApp(ctx, client)
 
 	Configuration.ChannelMode = "denylist"
-	Configuration.ChannelDenylist = []string{"6d792d7075626b65792d69732d766572792d6c6f6e672d666f722d7472696d6d696e672d7075626b6579"}
+	Configuration.ChannelDenylist = []string{"03006fcf3312dae8d068ea297f58e2bd00ec1ffe214b793eda46966b6294a53ce6"}
 
 	app.DispatchChannelAcceptor(ctx)
 
 	// should be denied
 
 	client.channelAcceptorRequests <- &lnrpc.ChannelAcceptRequest{
-		NodePubkey:    []byte("my-pubkey-is-very-long-for-trimming-pubkey"),
+		NodePubkey:    []byte("03006fcf3312dae8d068ea297f58e2bd00ec1ffe214b793eda46966b6294a53ce6"),
 		FundingAmt:    1337000,
 		PendingChanId: []byte("759495353533530113"),
 	}
@@ -534,13 +546,13 @@ func TestChannelAllowlist_Match(t *testing.T) {
 	app := NewApp(ctx, client)
 
 	Configuration.ChannelMode = "allowlist"
-	Configuration.ChannelAllowlist = []string{"6d792d7075626b65792d69732d766572792d6c6f6e672d666f722d7472696d6d696e672d7075626b6579"}
+	Configuration.ChannelAllowlist = []string{"03006fcf3312dae8d068ea297f58e2bd00ec1ffe214b793eda46966b6294a53ce6"}
 
 	app.DispatchChannelAcceptor(ctx)
 
 	// should be allowed
 	client.channelAcceptorRequests <- &lnrpc.ChannelAcceptRequest{
-		NodePubkey:    []byte("my-pubkey-is-very-long-for-trimming-pubkey"),
+		NodePubkey:    []byte("03006fcf3312dae8d068ea297f58e2bd00ec1ffe214b793eda46966b6294a53ce6"),
 		FundingAmt:    1337000,
 		PendingChanId: []byte("759495353533530113"),
 	}
