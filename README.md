@@ -72,7 +72,7 @@ ChannelAccept.OneMl.Noderank.Age < 10000 &&
 )
  ```
 
- Here is an example `HtlcForward.js`
+ Here is an example `HtlcForward.js` for deciding on HTLC forwards:
  ```javascript
  if (
     // only forward amounts larger than 100 sat
