@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
+	"testing"
+
 	"github.com/callebtc/electronwall/config"
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestApp(t *testing.T) {
@@ -451,16 +453,16 @@ func TestChannelAllowlist_CorrectKey(t *testing.T) {
 	defer cancel()
 
 	app := NewApp(ctx, client)
-
+	pubkey_str := "03006fcf3312dae8d068ea297f58e2bd00ec1ffe214b793eda46966b6294a53ce6"
 	config.Configuration.ChannelMode = "allowlist"
-	config.Configuration.ChannelAllowlist = []string{"03006fcf3312dae8d068ea297f58e2bd00ec1ffe214b793eda46966b6294a53ce6"}
+	config.Configuration.ChannelAllowlist = []string{pubkey_str}
 
 	app.DispatchChannelAcceptor(ctx)
 
 	// correct key: should be allowed
-
+	pubkey, _ := hex.DecodeString(pubkey_str)
 	client.channelAcceptorRequests <- &lnrpc.ChannelAcceptRequest{
-		NodePubkey:    []byte("03006fcf3312dae8d068ea297f58e2bd00ec1ffe214b793eda46966b6294a53ce6"),
+		NodePubkey:    pubkey,
 		FundingAmt:    1337000,
 		PendingChanId: []byte("759495353533530113"),
 	}
@@ -476,8 +478,9 @@ func TestChannelAllowlist_WrongKey(t *testing.T) {
 
 	app := NewApp(ctx, client)
 
+	pubkey_str := "03006fcf3312dae8d068ea297f58e2bd00ec1ffe214b793eda46966b6294a53ce6"
 	config.Configuration.ChannelMode = "allowlist"
-	config.Configuration.ChannelAllowlist = []string{"03006fcf3312dae8d068ea297f58e2bd00ec1ffe214b793eda46966b6294a53ce6"}
+	config.Configuration.ChannelAllowlist = []string{pubkey_str}
 
 	app.DispatchChannelAcceptor(ctx)
 	// wrong key: should be denied
@@ -500,12 +503,14 @@ func TestChannelAllowlist_Wildcard(t *testing.T) {
 
 	app.DispatchChannelAcceptor(ctx)
 
+	pubkey_str := "03006fcf3312dae8d068ea297f58e2bd00ec1ffe214b793eda46966b6294a53ce6"
 	// wildcard: should be allowed
 	config.Configuration.ChannelMode = "allowlist"
 	config.Configuration.ChannelAllowlist = []string{"*"}
 
+	pubkey, _ := hex.DecodeString(pubkey_str)
 	client.channelAcceptorRequests <- &lnrpc.ChannelAcceptRequest{
-		NodePubkey:    []byte("03006fcf3312dae8d068ea297f58e2bd00ec1ffe214b793eda46966b6294a53ce6"),
+		NodePubkey:    pubkey,
 		FundingAmt:    1337000,
 		PendingChanId: []byte("759495353533530113"),
 	}
@@ -520,16 +525,16 @@ func TestChannelDenylist_Match(t *testing.T) {
 	defer cancel()
 
 	app := NewApp(ctx, client)
-
+	pubkey_str := "03006fcf3312dae8d068ea297f58e2bd00ec1ffe214b793eda46966b6294a53ce6"
 	config.Configuration.ChannelMode = "denylist"
-	config.Configuration.ChannelDenylist = []string{"03006fcf3312dae8d068ea297f58e2bd00ec1ffe214b793eda46966b6294a53ce6"}
+	config.Configuration.ChannelDenylist = []string{pubkey_str}
 
 	app.DispatchChannelAcceptor(ctx)
 
 	// should be denied
-
+	pubkey, _ := hex.DecodeString(pubkey_str)
 	client.channelAcceptorRequests <- &lnrpc.ChannelAcceptRequest{
-		NodePubkey:    []byte("03006fcf3312dae8d068ea297f58e2bd00ec1ffe214b793eda46966b6294a53ce6"),
+		NodePubkey:    []byte(pubkey),
 		FundingAmt:    1337000,
 		PendingChanId: []byte("759495353533530113"),
 	}
@@ -544,15 +549,16 @@ func TestChannelAllowlist_Match(t *testing.T) {
 	defer cancel()
 
 	app := NewApp(ctx, client)
-
+	pubkey_str := "03006fcf3312dae8d068ea297f58e2bd00ec1ffe214b793eda46966b6294a53ce6"
 	config.Configuration.ChannelMode = "allowlist"
-	config.Configuration.ChannelAllowlist = []string{"03006fcf3312dae8d068ea297f58e2bd00ec1ffe214b793eda46966b6294a53ce6"}
+	config.Configuration.ChannelAllowlist = []string{pubkey_str}
 
 	app.DispatchChannelAcceptor(ctx)
 
 	// should be allowed
+	pubkey, _ := hex.DecodeString(pubkey_str)
 	client.channelAcceptorRequests <- &lnrpc.ChannelAcceptRequest{
-		NodePubkey:    []byte("03006fcf3312dae8d068ea297f58e2bd00ec1ffe214b793eda46966b6294a53ce6"),
+		NodePubkey:    []byte(pubkey),
 		FundingAmt:    1337000,
 		PendingChanId: []byte("759495353533530113"),
 	}
