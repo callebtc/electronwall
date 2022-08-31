@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"testing"
 
+	"github.com/callebtc/electronwall/config"
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
 	log "github.com/sirupsen/logrus"
@@ -33,8 +35,8 @@ func TestHTLCDenylist_BothMatch(t *testing.T) {
 
 	app := NewApp(ctx, client)
 
-	Configuration.ForwardMode = "denylist"
-	Configuration.ForwardDenylist = []string{"700762x1327x1->690757x1005x1"}
+	config.Configuration.ForwardMode = "denylist"
+	config.Configuration.ForwardDenylist = []string{"700762x1327x1->690757x1005x1"}
 
 	app.DispatchHTLCAcceptor(ctx)
 
@@ -67,8 +69,8 @@ func TestHTLCDenylist_BothNoMatch(t *testing.T) {
 
 	app := NewApp(ctx, client)
 
-	Configuration.ForwardMode = "denylist"
-	Configuration.ForwardDenylist = []string{"700762x1327x1->690757x1005x1"}
+	config.Configuration.ForwardMode = "denylist"
+	config.Configuration.ForwardDenylist = []string{"700762x1327x1->690757x1005x1"}
 
 	app.DispatchHTLCAcceptor(ctx)
 
@@ -101,12 +103,12 @@ func TestHTLCDenylist_WildCardOutBothMatch(t *testing.T) {
 
 	app := NewApp(ctx, client)
 
-	Configuration.ForwardMode = "denylist"
-	Configuration.ForwardDenylist = []string{"700762x1327x1->690757x1005x1"}
+	config.Configuration.ForwardMode = "denylist"
+	config.Configuration.ForwardDenylist = []string{"700762x1327x1->690757x1005x1"}
 
 	app.DispatchHTLCAcceptor(ctx)
 
-	Configuration.ForwardDenylist = []string{"700762x1327x1->*"}
+	config.Configuration.ForwardDenylist = []string{"700762x1327x1->*"}
 
 	key := &routerrpc.CircuitKey{
 		ChanId: 770495967390531585,
@@ -137,14 +139,14 @@ func TestHTLCDenylist_WildCardOutNoMatch(t *testing.T) {
 
 	app := NewApp(ctx, client)
 
-	Configuration.ForwardMode = "denylist"
-	Configuration.ForwardDenylist = []string{"700762x1327x1->690757x1005x1"}
+	config.Configuration.ForwardMode = "denylist"
+	config.Configuration.ForwardDenylist = []string{"700762x1327x1->690757x1005x1"}
 
 	app.DispatchHTLCAcceptor(ctx)
 
 	// wildcard out, first key doesn't match: should be allowed
 
-	Configuration.ForwardDenylist = []string{"700762x1327x1->*"}
+	config.Configuration.ForwardDenylist = []string{"700762x1327x1->*"}
 
 	key := &routerrpc.CircuitKey{
 		ChanId: 759495353533530113,
@@ -176,11 +178,11 @@ func TestHTLCAllowlist_BothMatch(t *testing.T) {
 
 	app.DispatchHTLCAcceptor(ctx)
 
-	Configuration.ForwardMode = "allowlist"
+	config.Configuration.ForwardMode = "allowlist"
 
 	// both keys correct: should be allowed
-	Configuration.ForwardAllowlist = []string{"700762x1327x1->690757x1005x1"}
-	log.Tracef("[test] Mode: %s, Rules: %v", Configuration.ForwardMode, Configuration.ForwardAllowlist)
+	config.Configuration.ForwardAllowlist = []string{"700762x1327x1->690757x1005x1"}
+	log.Tracef("[test] Mode: %s, Rules: %v", config.Configuration.ForwardMode, config.Configuration.ForwardAllowlist)
 
 	key := &routerrpc.CircuitKey{
 		ChanId: 770495967390531585,
@@ -212,10 +214,10 @@ func TestHTLCAllowlist_BothNonMatch(t *testing.T) {
 
 	app.DispatchHTLCAcceptor(ctx)
 
-	Configuration.ForwardMode = "allowlist"
+	config.Configuration.ForwardMode = "allowlist"
 	// both keys wrong: should be denied
-	Configuration.ForwardAllowlist = []string{"700762x1327x1->690757x1005x1"}
-	log.Tracef("[test] Mode: %s, Rules: %v", Configuration.ForwardMode, Configuration.ForwardAllowlist)
+	config.Configuration.ForwardAllowlist = []string{"700762x1327x1->690757x1005x1"}
+	log.Tracef("[test] Mode: %s, Rules: %v", config.Configuration.ForwardMode, config.Configuration.ForwardAllowlist)
 
 	key := &routerrpc.CircuitKey{
 		ChanId: 123456789876543210,
@@ -246,10 +248,10 @@ func TestHTLCAllowlist_Wildcard(t *testing.T) {
 
 	app.DispatchHTLCAcceptor(ctx)
 
-	Configuration.ForwardMode = "allowlist"
+	config.Configuration.ForwardMode = "allowlist"
 	// wildcard: should be allowed
-	Configuration.ForwardAllowlist = []string{"*"}
-	log.Tracef("[test] Mode: %s, Rules: %v", Configuration.ForwardMode, Configuration.ForwardAllowlist)
+	config.Configuration.ForwardAllowlist = []string{"*"}
+	log.Tracef("[test] Mode: %s, Rules: %v", config.Configuration.ForwardMode, config.Configuration.ForwardAllowlist)
 	key := &routerrpc.CircuitKey{
 		ChanId: 123456789876543210,
 		HtlcId: 1337000,
@@ -279,11 +281,11 @@ func TestHTLCAllowlist_WildcardIn(t *testing.T) {
 
 	app.DispatchHTLCAcceptor(ctx)
 
-	Configuration.ForwardMode = "allowlist"
+	config.Configuration.ForwardMode = "allowlist"
 	// wildcard in: should be allowed
 
-	Configuration.ForwardAllowlist = []string{"*->690757x1005x1"}
-	log.Tracef("[test] Mode: %s, Rules: %v", Configuration.ForwardMode, Configuration.ForwardAllowlist)
+	config.Configuration.ForwardAllowlist = []string{"*->690757x1005x1"}
+	log.Tracef("[test] Mode: %s, Rules: %v", config.Configuration.ForwardMode, config.Configuration.ForwardAllowlist)
 
 	key := &routerrpc.CircuitKey{
 		ChanId: 123456789876543210,
@@ -314,10 +316,10 @@ func TestHTLCAllowlist_WildcardOut(t *testing.T) {
 
 	app.DispatchHTLCAcceptor(ctx)
 
-	Configuration.ForwardMode = "allowlist"
+	config.Configuration.ForwardMode = "allowlist"
 	// wildcard out: should be allowed
-	Configuration.ForwardAllowlist = []string{"700762x1327x1->*"}
-	log.Tracef("[test] Mode: %s, Rules: %v", Configuration.ForwardMode, Configuration.ForwardAllowlist)
+	config.Configuration.ForwardAllowlist = []string{"700762x1327x1->*"}
+	log.Tracef("[test] Mode: %s, Rules: %v", config.Configuration.ForwardMode, config.Configuration.ForwardAllowlist)
 
 	key := &routerrpc.CircuitKey{
 		ChanId: 770495967390531585,
@@ -348,10 +350,10 @@ func TestHTLCAllowlist_WildcardOutWrongKeyIn(t *testing.T) {
 
 	app.DispatchHTLCAcceptor(ctx)
 
-	Configuration.ForwardMode = "allowlist"
+	config.Configuration.ForwardMode = "allowlist"
 	// wildcard out but wrong in key: should be denied
-	Configuration.ForwardAllowlist = []string{"700762x1327x1->*"}
-	log.Tracef("[test] Mode: %s, Rules: %v", Configuration.ForwardMode, Configuration.ForwardAllowlist)
+	config.Configuration.ForwardAllowlist = []string{"700762x1327x1->*"}
+	log.Tracef("[test] Mode: %s, Rules: %v", config.Configuration.ForwardMode, config.Configuration.ForwardAllowlist)
 
 	key := &routerrpc.CircuitKey{
 		ChanId: 123456789876543210,
@@ -382,10 +384,10 @@ func TestHTLCAllowlist_WildcardIn_WrongKeyOut(t *testing.T) {
 
 	app.DispatchHTLCAcceptor(ctx)
 
-	Configuration.ForwardMode = "allowlist"
+	config.Configuration.ForwardMode = "allowlist"
 	// wildcard in but wrong out key: should be denied
-	Configuration.ForwardAllowlist = []string{"*->700762x1327x1"}
-	log.Tracef("[test] Mode: %s, Rules: %v", Configuration.ForwardMode, Configuration.ForwardAllowlist)
+	config.Configuration.ForwardAllowlist = []string{"*->700762x1327x1"}
+	log.Tracef("[test] Mode: %s, Rules: %v", config.Configuration.ForwardMode, config.Configuration.ForwardAllowlist)
 
 	key := &routerrpc.CircuitKey{
 		ChanId: 123456789876543210,
@@ -416,10 +418,10 @@ func TestHTLCAllowlist_WildcardBoth(t *testing.T) {
 
 	app.DispatchHTLCAcceptor(ctx)
 
-	Configuration.ForwardMode = "allowlist"
+	config.Configuration.ForwardMode = "allowlist"
 	// wildcard both: should be allowed
-	Configuration.ForwardAllowlist = []string{"*->*"}
-	log.Tracef("[test] Mode: %s, Rules: %v", Configuration.ForwardMode, Configuration.ForwardAllowlist)
+	config.Configuration.ForwardAllowlist = []string{"*->*"}
+	log.Tracef("[test] Mode: %s, Rules: %v", config.Configuration.ForwardMode, config.Configuration.ForwardAllowlist)
 
 	key := &routerrpc.CircuitKey{
 		ChanId: 123456789876543210,
@@ -451,16 +453,16 @@ func TestChannelAllowlist_CorrectKey(t *testing.T) {
 	defer cancel()
 
 	app := NewApp(ctx, client)
-
-	Configuration.ChannelMode = "allowlist"
-	Configuration.ChannelAllowlist = []string{"6d792d7075626b65792d69732d766572792d6c6f6e672d666f722d7472696d6d696e672d7075626b6579"}
+	pubkey_str := "03006fcf3312dae8d068ea297f58e2bd00ec1ffe214b793eda46966b6294a53ce6"
+	config.Configuration.ChannelMode = "allowlist"
+	config.Configuration.ChannelAllowlist = []string{pubkey_str}
 
 	app.DispatchChannelAcceptor(ctx)
 
 	// correct key: should be allowed
-
+	pubkey, _ := hex.DecodeString(pubkey_str)
 	client.channelAcceptorRequests <- &lnrpc.ChannelAcceptRequest{
-		NodePubkey:    []byte("my-pubkey-is-very-long-for-trimming-pubkey"),
+		NodePubkey:    pubkey,
 		FundingAmt:    1337000,
 		PendingChanId: []byte("759495353533530113"),
 	}
@@ -468,15 +470,28 @@ func TestChannelAllowlist_CorrectKey(t *testing.T) {
 	resp := <-client.channelAcceptorResponses
 	require.Equal(t, resp.Accept, true)
 
+}
+func TestChannelAllowlist_WrongKey(t *testing.T) {
+	client := newLndclientMock()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	app := NewApp(ctx, client)
+
+	pubkey_str := "03006fcf3312dae8d068ea297f58e2bd00ec1ffe214b793eda46966b6294a53ce6"
+	config.Configuration.ChannelMode = "allowlist"
+	config.Configuration.ChannelAllowlist = []string{pubkey_str}
+
+	app.DispatchChannelAcceptor(ctx)
 	// wrong key: should be denied
 
 	client.channelAcceptorRequests <- &lnrpc.ChannelAcceptRequest{
-		NodePubkey:    []byte("WRONG PUBKEY"),
+		NodePubkey:    []byte("WRONG-KEY"),
 		FundingAmt:    1337000,
 		PendingChanId: []byte("759495353533530113"),
 	}
 
-	resp = <-client.channelAcceptorResponses
+	resp := <-client.channelAcceptorResponses
 	require.Equal(t, resp.Accept, false)
 }
 func TestChannelAllowlist_Wildcard(t *testing.T) {
@@ -488,12 +503,14 @@ func TestChannelAllowlist_Wildcard(t *testing.T) {
 
 	app.DispatchChannelAcceptor(ctx)
 
+	pubkey_str := "03006fcf3312dae8d068ea297f58e2bd00ec1ffe214b793eda46966b6294a53ce6"
 	// wildcard: should be allowed
-	Configuration.ChannelMode = "allowlist"
-	Configuration.ChannelAllowlist = []string{"*"}
+	config.Configuration.ChannelMode = "allowlist"
+	config.Configuration.ChannelAllowlist = []string{"*"}
 
+	pubkey, _ := hex.DecodeString(pubkey_str)
 	client.channelAcceptorRequests <- &lnrpc.ChannelAcceptRequest{
-		NodePubkey:    []byte("WRONG PUBKEY"),
+		NodePubkey:    pubkey,
 		FundingAmt:    1337000,
 		PendingChanId: []byte("759495353533530113"),
 	}
@@ -508,16 +525,16 @@ func TestChannelDenylist_Match(t *testing.T) {
 	defer cancel()
 
 	app := NewApp(ctx, client)
-
-	Configuration.ChannelMode = "denylist"
-	Configuration.ChannelDenylist = []string{"6d792d7075626b65792d69732d766572792d6c6f6e672d666f722d7472696d6d696e672d7075626b6579"}
+	pubkey_str := "03006fcf3312dae8d068ea297f58e2bd00ec1ffe214b793eda46966b6294a53ce6"
+	config.Configuration.ChannelMode = "denylist"
+	config.Configuration.ChannelDenylist = []string{pubkey_str}
 
 	app.DispatchChannelAcceptor(ctx)
 
 	// should be denied
-
+	pubkey, _ := hex.DecodeString(pubkey_str)
 	client.channelAcceptorRequests <- &lnrpc.ChannelAcceptRequest{
-		NodePubkey:    []byte("my-pubkey-is-very-long-for-trimming-pubkey"),
+		NodePubkey:    []byte(pubkey),
 		FundingAmt:    1337000,
 		PendingChanId: []byte("759495353533530113"),
 	}
@@ -532,15 +549,16 @@ func TestChannelAllowlist_Match(t *testing.T) {
 	defer cancel()
 
 	app := NewApp(ctx, client)
-
-	Configuration.ChannelMode = "allowlist"
-	Configuration.ChannelAllowlist = []string{"6d792d7075626b65792d69732d766572792d6c6f6e672d666f722d7472696d6d696e672d7075626b6579"}
+	pubkey_str := "03006fcf3312dae8d068ea297f58e2bd00ec1ffe214b793eda46966b6294a53ce6"
+	config.Configuration.ChannelMode = "allowlist"
+	config.Configuration.ChannelAllowlist = []string{pubkey_str}
 
 	app.DispatchChannelAcceptor(ctx)
 
 	// should be allowed
+	pubkey, _ := hex.DecodeString(pubkey_str)
 	client.channelAcceptorRequests <- &lnrpc.ChannelAcceptRequest{
-		NodePubkey:    []byte("my-pubkey-is-very-long-for-trimming-pubkey"),
+		NodePubkey:    []byte(pubkey),
 		FundingAmt:    1337000,
 		PendingChanId: []byte("759495353533530113"),
 	}

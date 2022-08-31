@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/callebtc/electronwall/config"
 	"github.com/callebtc/electronwall/rules"
 	"github.com/callebtc/electronwall/types"
 	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
@@ -144,14 +145,14 @@ func (app *App) interceptHtlcEvents(ctx context.Context) error {
 			}
 			switch accept {
 			case true:
-				if Configuration.LogJson {
+				if config.Configuration.LogJson {
 					contextLogger.Infof("allow")
 				} else {
 					log.Infof("[forward] ✅ Allow HTLC %s", forward_info_string)
 				}
 				response.Action = routerrpc.ResolveHoldForwardAction_RESUME
 			case false:
-				if Configuration.LogJson {
+				if config.Configuration.LogJson {
 					contextLogger.Infof("deny")
 				} else {
 					log.Infof("[forward] ❌ Deny HTLC %s", forward_info_string)
@@ -181,15 +182,15 @@ func (app *App) htlcInterceptDecision(ctx context.Context, event *routerrpc.Forw
 	// time.Sleep(60 * time.Second)
 
 	// determine filtering mode and list to parse
-	switch Configuration.ForwardMode {
+	switch config.Configuration.ForwardMode {
 	case "allowlist":
 		accept = false
-		listToParse = Configuration.ForwardAllowlist
+		listToParse = config.Configuration.ForwardAllowlist
 	case "denylist":
 		accept = true
-		listToParse = Configuration.ForwardDenylist
+		listToParse = config.Configuration.ForwardDenylist
 	default:
-		return false, fmt.Errorf("unknown forward mode: %s", Configuration.ForwardMode)
+		return false, fmt.Errorf("unknown forward mode: %s", config.Configuration.ForwardMode)
 	}
 
 	// parse list and decide
@@ -217,6 +218,7 @@ func (app *App) htlcInterceptDecision(ctx context.Context, event *routerrpc.Forw
 		}
 	}
 	// decision_chan <- accept
+	log.Infof("[list] decision: %t", accept)
 	return accept, nil
 }
 
@@ -251,7 +253,7 @@ func (app *App) logHtlcEvents(ctx context.Context) error {
 
 		switch event.Event.(type) {
 		case *routerrpc.HtlcEvent_SettleEvent:
-			if Configuration.LogJson {
+			if config.Configuration.LogJson {
 				contextLogger(event).Infof("SettleEvent")
 				// contextLogger.Debugf("[forward] Preimage: %s", hex.EncodeToString(event.GetSettleEvent().Preimage))
 			} else {
@@ -262,7 +264,7 @@ func (app *App) logHtlcEvents(ctx context.Context) error {
 			}
 
 		case *routerrpc.HtlcEvent_ForwardFailEvent:
-			if Configuration.LogJson {
+			if config.Configuration.LogJson {
 				contextLogger(event).Infof("ForwardFailEvent")
 				// contextLogger.Debugf("[forward] Reason: %s", event.GetForwardFailEvent())
 			} else {
@@ -271,7 +273,7 @@ func (app *App) logHtlcEvents(ctx context.Context) error {
 			}
 
 		case *routerrpc.HtlcEvent_ForwardEvent:
-			if Configuration.LogJson {
+			if config.Configuration.LogJson {
 				contextLogger(event).Infof("ForwardEvent")
 			} else {
 				log.Infof("[forward] HTLC ForwardEvent (chan_id:%s, htlc_id:%d)", ParseChannelID(event.IncomingChannelId), event.IncomingHtlcId)
@@ -280,7 +282,7 @@ func (app *App) logHtlcEvents(ctx context.Context) error {
 			// log.Debugf("[forward] Details: %s", event.GetForwardEvent().String())
 
 		case *routerrpc.HtlcEvent_LinkFailEvent:
-			if Configuration.LogJson {
+			if config.Configuration.LogJson {
 				contextLogger(event).Infof("LinkFailEvent")
 				// contextLogger(event).Debugf("[forward] Reason: %s", event.GetLinkFailEvent().FailureString)
 			} else {

@@ -2,14 +2,20 @@ package rules
 
 import (
 	"fmt"
-	"log"
 	"os"
 
+	"github.com/callebtc/electronwall/config"
 	"github.com/callebtc/electronwall/types"
 	"github.com/dop251/goja"
+	log "github.com/sirupsen/logrus"
 )
 
 func Apply(s interface{}, decision_chan chan bool) (accept bool, err error) {
+
+	if !config.Configuration.ApiRules.Apply {
+		return true, nil
+	}
+
 	vm := goja.New()
 
 	var js_script []byte
@@ -28,12 +34,6 @@ func Apply(s interface{}, decision_chan chan bool) (accept bool, err error) {
 		if err != nil {
 			log.Fatal(err)
 		}
-	// case *routerrpc.ForwardHtlcInterceptRequest:
-	// 	vm.Set("HtlcForwardEvent", s)
-	// 	js_script, err = os.ReadFile("rules/ForwardHtlcInterceptRequest.js")
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
 	default:
 		return false, fmt.Errorf("no rule found for event type")
 	}
@@ -41,11 +41,12 @@ func Apply(s interface{}, decision_chan chan bool) (accept bool, err error) {
 	// execute script
 	v, err := vm.RunString(string(js_script))
 	if err != nil {
-		fmt.Print(err.Error())
+		log.Errorf("JS error: %v", err)
 		return
 	}
 
 	accept = v.Export().(bool)
 	decision_chan <- accept
+	log.Infof("[rules] decision: %t", accept)
 	return accept, nil
 }

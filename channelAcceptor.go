@@ -6,13 +6,15 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/callebtc/electronwall/api"
+	"github.com/callebtc/electronwall/config"
 	"github.com/callebtc/electronwall/rules"
 	"github.com/callebtc/electronwall/types"
 	"github.com/lightningnetwork/lnd/lnrpc"
 	log "github.com/sirupsen/logrus"
 )
 
-func (app *App) getChannelAcceptEvent(ctx context.Context, req lnrpc.ChannelAcceptRequest) (types.ChannelAcceptEvent, error) {
+func (app *App) GetChannelAcceptEvent(ctx context.Context, req lnrpc.ChannelAcceptRequest) (types.ChannelAcceptEvent, error) {
 	// print the incoming channel request
 	alias, err := app.lnd.getNodeAlias(ctx, hex.EncodeToString(req.NodePubkey))
 	if err != nil {
@@ -23,11 +25,19 @@ func (app *App) getChannelAcceptEvent(ctx context.Context, req lnrpc.ChannelAcce
 	if err != nil {
 		log.Errorf(err.Error())
 	}
+
+	noeInfo, err := api.GetApiNodeinfo(hex.EncodeToString(req.NodePubkey))
+	if err != nil {
+		log.Errorf(err.Error())
+	}
+
 	return types.ChannelAcceptEvent{
 		PubkeyFrom: hex.EncodeToString(req.NodePubkey),
 		AliasFrom:  alias,
 		NodeInfo:   info,
 		Event:      &req,
+		OneMl:      noeInfo.OneMl,
+		Amboss:     noeInfo.Amboss,
 	}, nil
 }
 
@@ -68,7 +78,7 @@ func (app *App) interceptChannelEvents(ctx context.Context) error {
 			return err
 		}
 
-		channelAcceptEvent, err := app.getChannelAcceptEvent(ctx, req)
+		channelAcceptEvent, err := app.GetChannelAcceptEvent(ctx, req)
 		if err != nil {
 			return err
 		}
@@ -116,7 +126,7 @@ func (app *App) interceptChannelEvents(ctx context.Context) error {
 			return err
 		}
 		// parse list
-		list_decision, err := app.channelAcceptDecision(req)
+		list_decision, err := app.channelAcceptListDecision(req)
 		if err != nil {
 			return err
 		}
@@ -128,7 +138,7 @@ func (app *App) interceptChannelEvents(ctx context.Context) error {
 
 		res := lnrpc.ChannelAcceptResponse{}
 		if accept {
-			if Configuration.LogJson {
+			if config.Configuration.LogJson {
 				contextLogger.Infof("allow")
 			} else {
 				log.Infof("[channel] ✅ Allow channel %s", channel_info_string)
@@ -143,13 +153,13 @@ func (app *App) interceptChannelEvents(ctx context.Context) error {
 			}
 
 		} else {
-			if Configuration.LogJson {
+			if config.Configuration.LogJson {
 				contextLogger.Infof("deny")
 			} else {
 				log.Infof("[channel] ❌ Deny channel %s", channel_info_string)
 			}
 			res = lnrpc.ChannelAcceptResponse{Accept: false,
-				Error: Configuration.ChannelRejectMessage}
+				Error: config.Configuration.ChannelRejectMessage}
 		}
 		err = acceptClient.Send(&res)
 		if err != nil {
@@ -159,26 +169,26 @@ func (app *App) interceptChannelEvents(ctx context.Context) error {
 
 }
 
-func (app *App) channelAcceptDecision(req lnrpc.ChannelAcceptRequest) (bool, error) {
+func (app *App) channelAcceptListDecision(req lnrpc.ChannelAcceptRequest) (bool, error) {
 	// determine mode and list of channels to parse
 	var accept bool
 	var listToParse []string
-	if Configuration.ChannelMode == "allowlist" {
+	if config.Configuration.ChannelMode == "allowlist" {
 		accept = false
-		listToParse = Configuration.ChannelAllowlist
-	} else if Configuration.ChannelMode == "denylist" {
+		listToParse = config.Configuration.ChannelAllowlist
+	} else if config.Configuration.ChannelMode == "denylist" {
 		accept = true
-		listToParse = Configuration.ChannelDenylist
+		listToParse = config.Configuration.ChannelDenylist
 	}
 
 	// parse and make decision
-	log.Infof(hex.EncodeToString(req.NodePubkey))
 	for _, pubkey := range listToParse {
 		if hex.EncodeToString(req.NodePubkey) == pubkey || pubkey == "*" {
 			accept = !accept
 			break
 		}
 	}
+	log.Infof("[list] decision: %t", accept)
 	return accept, nil
 
 }
@@ -205,7 +215,7 @@ func (app *App) logChannelEvents(ctx context.Context) error {
 				alias,
 			)
 
-			if Configuration.LogJson {
+			if config.Configuration.LogJson {
 				contextLogger := log.WithFields(log.Fields{
 					"event":    "channel",
 					"capacity": event.GetOpenChannel().Capacity,

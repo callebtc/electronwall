@@ -41,3 +41,13 @@ forward-allowlist:
   - "*->25328x256x0"                    # all forwards to this channel
 forward-denylist:
   - "9961472x65537x1"
+
+# ---- Javascript rules ----
+rules:
+  apply: true                           # whether to respect the rule decision
+  oneml:                                # 1ML.com API
+    active: true                        
+    timeout: 5                          # API timeout in seconds
+  amboss:                               # Amboss.space API
+    active: true
+    timeout: 5                          # API timeout in seconds

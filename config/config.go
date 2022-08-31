@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"fmt"
@@ -20,6 +20,17 @@ var Configuration = struct {
 	ForwardMode          string   `yaml:"forward-mode"`
 	ForwardAllowlist     []string `yaml:"forward-allowlist"`
 	ForwardDenylist      []string `yaml:"forward-denylist"`
+	ApiRules             struct {
+		Apply bool `yaml:"apply"`
+		OneMl struct {
+			Active  bool `yaml:"active"`
+			Timeout int  `yaml:"timeout"`
+		} `yaml:"oneml"`
+		Amboss struct {
+			Active  bool `yaml:"active"`
+			Timeout int  `yaml:"timeout"`
+		} `yaml:"amboss"`
+	} `yaml:"rules"`
 }{}
 
 func init() {
@@ -31,8 +42,6 @@ func init() {
 }
 
 func checkConfig() {
-	setLogger(Configuration.Debug, Configuration.LogJson)
-	welcome()
 
 	if Configuration.Host == "" {
 		panic(fmt.Errorf("no host specified in config.yaml"))
