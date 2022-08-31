@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/callebtc/electronwall/config"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -44,7 +45,7 @@ func (c *OneMlClient) GetNodeInfo(pubkey string) (OneML_NodeInfoResponse, error)
 	log.Infof("Getting info from 1ml.com for %s", pubkey)
 
 	client := http.Client{
-		Timeout: time.Second * 2, // Timeout after 2 seconds
+		Timeout: time.Second * time.Duration(config.Configuration.ApiRules.OneMl.Timeout),
 	}
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)

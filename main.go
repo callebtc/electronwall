@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"sync"
 
+	"github.com/callebtc/electronwall/config"
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
 	"github.com/lightningnetwork/lnd/macaroons"
@@ -39,11 +40,11 @@ func NewApp(ctx context.Context, lnd lndclient) *App {
 
 // gets the lnd grpc connection
 func getClientConnection(ctx context.Context) (*grpc.ClientConn, error) {
-	creds, err := credentials.NewClientTLSFromFile(Configuration.TLSPath, "")
+	creds, err := credentials.NewClientTLSFromFile(config.Configuration.TLSPath, "")
 	if err != nil {
 		return nil, err
 	}
-	macBytes, err := ioutil.ReadFile(Configuration.MacaroonPath)
+	macBytes, err := ioutil.ReadFile(config.Configuration.MacaroonPath)
 	if err != nil {
 		return nil, err
 	}
@@ -60,8 +61,8 @@ func getClientConnection(ctx context.Context) (*grpc.ClientConn, error) {
 		grpc.WithBlock(),
 		grpc.WithPerRPCCredentials(cred),
 	}
-	log.Infof("Connecting to %s", Configuration.Host)
-	conn, err := grpc.DialContext(ctx, Configuration.Host, opts...)
+	log.Infof("Connecting to %s", config.Configuration.Host)
+	conn, err := grpc.DialContext(ctx, config.Configuration.Host, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -84,6 +85,8 @@ func newLndClient(ctx context.Context) (*LndClient, error) {
 }
 
 func main() {
+	SetLogger(config.Configuration.Debug, config.Configuration.LogJson)
+	Welcome()
 	ctx := context.Background()
 	for {
 		lnd, err := newLndClient(ctx)

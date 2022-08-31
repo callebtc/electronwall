@@ -4,12 +4,18 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/callebtc/electronwall/config"
 	"github.com/callebtc/electronwall/types"
 	"github.com/dop251/goja"
 	log "github.com/sirupsen/logrus"
 )
 
 func Apply(s interface{}, decision_chan chan bool) (accept bool, err error) {
+
+	if !config.Configuration.ApiRules.Apply {
+		return true, nil
+	}
+
 	vm := goja.New()
 
 	var js_script []byte
@@ -41,5 +47,6 @@ func Apply(s interface{}, decision_chan chan bool) (accept bool, err error) {
 
 	accept = v.Export().(bool)
 	decision_chan <- accept
+	log.Infof("[rules] decision: %t", accept)
 	return accept, nil
 }

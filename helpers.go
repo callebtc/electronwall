@@ -20,12 +20,12 @@ func trimPubKey(pubkey []byte) string {
 	}
 }
 
-func welcome() {
-	log.Info("---- ⚡️ electronwall 0.3.3 ⚡️ ----")
+func Welcome() {
+	log.Info("---- ⚡️ electronwall 0.4 ⚡️ ----")
 }
 
-// setLogger will initialize the log format
-func setLogger(debug bool, json bool) {
+// SetLogger will initialize the log format
+func SetLogger(debug bool, json bool) {
 	if json {
 		customFormatter := new(log.JSONFormatter)
 		customFormatter.TimestampFormat = "2006-01-02 15:04:05"
