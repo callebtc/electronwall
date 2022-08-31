@@ -31,7 +31,6 @@ Edit `config.yaml.example` and rename to `config.yaml`.
 ./electronwall
 ```
 
---------------- 
 # Rules
 
 ## Allowlist and denylist
