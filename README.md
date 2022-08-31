@@ -5,6 +5,8 @@ electronwall uses filter lists that either allow (allowlist) or reject (denylist
 
 You can also write [custom rules](#programmable-rules) using a builtin Javascript engine. 
 
+*Note: electronwall is in early development and highly experimental software. Use at your own risk. Please report issues.*
+
 ![electronwall0 4](https://user-images.githubusercontent.com/93376500/187682152-add9b2ee-7d84-4582-b5fd-3eb1a0fc7767.jpg)
 
 ## Install
