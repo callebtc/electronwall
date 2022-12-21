@@ -18,7 +18,6 @@ func main() {
 	pubkey := os.Args[1]
 	log.Infof("pubkey: %s", pubkey)
 	pk_byte := []byte(pubkey)
-	decision_chan := make(chan bool, 1)
 	event := types.ChannelAcceptEvent{}
 
 	event.Event = &lnrpc.ChannelAcceptRequest{}
@@ -43,7 +42,7 @@ func main() {
 	event.OneMl = nodeInfo.OneMl
 	event.Amboss = nodeInfo.Amboss
 
-	rules_decision, err := rules.Apply(event, decision_chan)
+	rules_decision, err := rules.Apply(event)
 	if err != nil {
 		panic(err)
 	}

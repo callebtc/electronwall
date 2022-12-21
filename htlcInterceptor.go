@@ -122,14 +122,11 @@ func (app *App) interceptHtlcEvents(ctx context.Context) error {
 				"htlc_id":     event.IncomingCircuitKey.HtlcId,
 			})
 
-			// decision for routing
-			decision_chan := make(chan bool, 1)
-
-			list_decision, err := app.htlcInterceptDecision(ctx, event, decision_chan)
+			list_decision, err := app.htlcInterceptDecision(ctx, event)
 			if err != nil {
 				return
 			}
-			rules_decision, err := rules.Apply(htlcForwardEvent, decision_chan)
+			rules_decision, err := rules.Apply(htlcForwardEvent)
 			if err != nil {
 				fmt.Printf("script error: %v", err)
 				return
@@ -174,7 +171,7 @@ func (app *App) interceptHtlcEvents(ctx context.Context) error {
 // 1. Either use a allowlist or a denylist.
 // 2. If a single channel ID is used (12320768x65536x0), check the incoming ID of the HTLC against the list.
 // 3. If two channel IDs are used (7929856x65537x0->7143424x65537x0), check the incoming ID and the outgoing ID of the HTLC against the list.
-func (app *App) htlcInterceptDecision(ctx context.Context, event *routerrpc.ForwardHtlcInterceptRequest, decision_chan chan bool) (bool, error) {
+func (app *App) htlcInterceptDecision(ctx context.Context, event *routerrpc.ForwardHtlcInterceptRequest) (bool, error) {
 	var accept bool
 	var listToParse []string
 
@@ -217,7 +214,6 @@ func (app *App) htlcInterceptDecision(ctx context.Context, event *routerrpc.Forw
 			}
 		}
 	}
-	// decision_chan <- accept
 	log.Infof("[list] decision: %t", accept)
 	return accept, nil
 }
