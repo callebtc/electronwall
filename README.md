@@ -1,4 +1,7 @@
-# ⚡️🛡 electronwall
+<p align="center">
+  	<img width="300" alt="Logo of electronwall." src="https://github.com/callebtc/electronwall/raw/main/resources/logo.png" >
+</p> 
+
 A tiny firewall for LND that can filter Lightning **channel opening requests** and **HTLC forwards** based on your custom rules. 
 
 electronwall uses filter lists that either allow (allowlist) or reject (denylist) events from a list of node public keys for channel openings, or channel IDs and channel pairs for payment routings.
