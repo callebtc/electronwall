@@ -5,7 +5,9 @@ electronwall uses filter lists that either allow (allowlist) or reject (denylist
 
 You can also write [custom rules](#programmable-rules) using a builtin Javascript engine. 
 
-![electronwall0 3 2](https://user-images.githubusercontent.com/93376500/178162791-e6ba90c1-2798-471d-b7aa-0b12eae8bf2e.png)
+*Note: electronwall is in early development and highly experimental software. Use at your own risk. Please report issues.*
+
+![electronwall0 4](https://user-images.githubusercontent.com/93376500/187682152-add9b2ee-7d84-4582-b5fd-3eb1a0fc7767.jpg)
 
 ## Install
 
@@ -31,7 +33,6 @@ Edit `config.yaml.example` and rename to `config.yaml`.
 ./electronwall
 ```
 
---------------- 
 # Rules
 
 ## Allowlist and denylist
@@ -71,7 +72,7 @@ ChannelAccept.OneMl.Noderank.Age < 10000 &&
 )
  ```
 
- Here is an example `HtlcForward.js`
+ Here is an example `HtlcForward.js` for deciding on HTLC forwards:
  ```javascript
  if (
     // only forward amounts larger than 100 sat
