@@ -38,6 +38,7 @@ func (app *App) getHtlcForwardEvent(ctx context.Context, event *routerrpc.Forwar
 	channelEdgeTo, err := app.lnd.getPubKeyFromChannel(ctx, event.OutgoingRequestedChanId)
 	if err != nil {
 		log.Errorf("[forward] Error getting pubkey for channel %s", ParseChannelID(event.OutgoingRequestedChanId))
+		return types.HtlcForwardEvent{}, err
 	}
 	if channelEdgeTo.Node1Pub != app.myInfo.IdentityPubkey {
 		pubkeyTo = channelEdgeTo.Node1Pub
