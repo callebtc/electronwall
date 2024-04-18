@@ -54,7 +54,6 @@ type Amboss_NodeInfoResponse struct {
 	} `json:"graph_info"`
 	Amboss struct {
 		IsFavorite            bool `json:"is_favorite"`
-		IsPrime               bool `json:"is_prime"`
 		NumberFavorites       int  `json:"number_favorites"`
 		NewChannelGossipDelta struct {
 			Mean string `json:"mean"`
@@ -120,7 +119,6 @@ var amboss_graphql_query = `query Info($pubkey: String!) {
 	  }
 	  amboss {
 		is_favorite
-		is_prime
 		number_favorites
 		new_channel_gossip_delta {
 		  mean
