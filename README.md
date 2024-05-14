@@ -38,6 +38,10 @@ Edit `config.yaml.example` and rename to `config.yaml`.
 
 # Rules
 
+## Passthrough
+
+The `passthrough` option is a mode for both `ChannelMode` and `ForwardMode` in the `config.yaml` file. When set to `passthrough`, electronwall will not apply any allowlist, denylist, or programmable rules to channel open requests or HTLC forwards. Instead, it will simply pass through all requests without any checks.
+
 ## Allowlist and denylist
 
 Allowlist and denylist rules are set in `config.yaml` under the appropriate keys. See the [example](config.yaml.example) config. 

@@ -61,8 +61,8 @@ func checkConfig() {
 	if len(Configuration.ChannelMode) == 0 {
 		Configuration.ChannelMode = "denylist"
 	}
-	if Configuration.ChannelMode != "allowlist" && Configuration.ChannelMode != "denylist" {
-		panic(fmt.Errorf("channel mode must be either allowlist or denylist"))
+	if Configuration.ChannelMode != "allowlist" && Configuration.ChannelMode != "denylist" && Configuration.ChannelMode != "passthrough" {
+		panic(fmt.Errorf("channel mode must be either allowlist, denylist or passthrough"))
 	}
 
 	log.Infof("Channel acceptor running in %s mode", Configuration.ChannelMode)
@@ -70,8 +70,8 @@ func checkConfig() {
 	if len(Configuration.ForwardMode) == 0 {
 		Configuration.ForwardMode = "denylist"
 	}
-	if Configuration.ForwardMode != "allowlist" && Configuration.ForwardMode != "denylist" {
-		panic(fmt.Errorf("channel mode must be either allowlist or denylist"))
+	if Configuration.ForwardMode != "allowlist" && Configuration.ForwardMode != "denylist" && Configuration.ForwardMode != "passthrough" {
+		panic(fmt.Errorf("forward mode must be either allowlist, denylist or passthrough"))
 	}
 
 	log.Infof("HTLC forwarder running in %s mode", Configuration.ForwardMode)

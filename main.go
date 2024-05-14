@@ -108,10 +108,14 @@ func main() {
 		wg.Add(2)
 
 		// channel acceptor
-		app.DispatchChannelAcceptor(ctx)
+		if config.Configuration.ChannelMode != "passthrough" {
+			app.DispatchChannelAcceptor(ctx)
+		}
 
 		// htlc acceptor
-		app.DispatchHTLCAcceptor(ctx)
+		if config.Configuration.ForwardMode != "passthrough" {
+			app.DispatchHTLCAcceptor(ctx)
+		}
 
 		wg.Wait()
 		log.Info("All routines stopped. Waiting for new connection.")

@@ -12,9 +12,10 @@ debug: true
 
 # ----- Channel openings -----
 
-# Mode can either be "denylist" or "allowlist"
-# Only one mode can be used at a time, the other list is ignored.
-channel-mode: "denylist" 
+# Mode can be "denylist", "allowlist", or "passthrough". Only one mode can be active.
+# If "denylist" is active, "allowlist" is ignored, and vice versa.
+# "passthrough" passes all requests through without checks, ignoring both lists.
+channel-mode: "denylist"
 
 # This error message will be sent to the other party upon a reject
 channel-reject-message: "Contact me at user@email.com"
@@ -29,8 +30,9 @@ channel-denylist:
 
 # ----- HTLC forwarding -----
 
-# Mode can either be "denylist" or "allowlist"
-# Only one mode can be used at a time, the other list is ignored.
+# Mode can be "denylist", "allowlist", or "passthrough". Only one mode can be active.
+# If "denylist" is active, "allowlist" is ignored, and vice versa.
+# "passthrough" passes all requests through without checks, ignoring both lists.
 forward-mode: "denylist"
 
 # List of channel IDs to allowlist or denylist
