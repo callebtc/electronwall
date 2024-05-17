@@ -120,8 +120,7 @@ func (app *App) interceptChannelEvents(ctx context.Context) error {
 		})
 
 		// make decision
-		decision_chan := make(chan bool, 1)
-		rules_decision, err := rules.Apply(channelAcceptEvent, decision_chan)
+		rules_decision, err := rules.Apply(channelAcceptEvent)
 		if err != nil {
 			return err
 		}
