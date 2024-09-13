@@ -10,7 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func Apply(s interface{}, decision_chan chan bool) (accept bool, err error) {
+func Apply(s interface{}) (accept bool, err error) {
 
 	if !config.Configuration.ApiRules.Apply {
 		return true, nil
@@ -45,8 +45,14 @@ func Apply(s interface{}, decision_chan chan bool) (accept bool, err error) {
 		return
 	}
 
-	accept = v.Export().(bool)
-	decision_chan <- accept
-	log.Infof("[rules] decision: %t", accept)
+	switch v.Export().(type) {
+	case bool:
+		accept = v.Export().(bool)
+		log.Infof("[rules] decision: %t", accept)
+	default:
+		// defaulting to false in case our rules fail to evaluate to boolean
+		log.Infof("[rules] failed applying rules - defaulting to false")
+		accept = false
+	}
 	return accept, nil
 }
